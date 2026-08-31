@@ -77,7 +77,7 @@
 
 @media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}</style></head><body>
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
-<div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／退勤は15分単位で切り下げ／休憩開始は15分単位で切り下げ／休憩終了は15分単位で繰り上げ／実働・残業・深夜は15分単位で切り下げ</p></div>
+<div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
 <div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><div class="tw"><table><thead><tr><th>日付</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
@@ -240,39 +240,48 @@ function punchTime(kind){
 }
 function stamp(k){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,day=iso(new Date());if(!s)return;x[s]??={};x[s][day]??=[];x[s][day].push([k,punchTime(k)]);localStorage.setItem(DK,JSON.stringify(x));render();allSummary();cloudAfterDayChange(s,day,x[s][day])}
 function mins(t){let a=t.split(':').map(Number);return a[0]*60+a[1]} function fmt(n){if(n==null)return'--';n=Math.max(0,Math.round(n));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')}
-function calc(a){
-  let ci=a.find(v=>v[0]=='出勤'),
-      co=[...a].reverse().find(v=>v[0]=='退勤'),
-      rawBreak=0,rawNightBreak=0,op=null;
+function roundPunchTime(kind,time){
+  if(!time)return time;
+  let [h,m]=time.split(':').map(Number);
+  if(kind==='出勤' || kind==='休憩終了'){
+    m=Math.ceil(m/15)*15;
+  }else if(kind==='退勤' || kind==='休憩開始'){
+    m=Math.floor(m/15)*15;
+  }
+  if(m===60){h++;m=0}
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
 
-  for(let v of a){
+function calc(a){
+  // 計算時も、出勤↑・休憩開始↓・休憩終了↑・退勤↓ の15分ルールを必ず適用
+  let aa=(a||[]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);
+  let ci=aa.find(v=>v[0]=='出勤'),
+      co=[...aa].reverse().find(v=>v[0]=='退勤'),
+      b=0,nb=0,op=null;
+
+  for(let v of aa){
     if(v[0]=='休憩開始')op=mins(v[1]);
     if(v[0]=='休憩終了'&&op!=null){
       let e=mins(v[1]);
-      rawBreak+=Math.max(0,e-op);
-      rawNightBreak+=Math.max(0,e-Math.max(op,1320));
+      b+=Math.max(0,e-op);
+      nb+=Math.max(0,e-Math.max(op,1320));
       op=null;
     }
   }
-
-  // 休憩時間も15分単位で切り下げ
-  let b=Math.floor(rawBreak/15)*15;
-  let nb=Math.floor(rawNightBreak/15)*15;
 
   if(!ci||!co)return[null,b,null,null];
 
   let st=mins(ci[1]),en=mins(co[1]);
   if(en<st)en+=1440;
 
-  // 実働・残業・深夜も15分単位で切り下げ
-  let rawWork=Math.max(0,en-st-b);
-  let work=Math.floor(rawWork/15)*15;
+  let work=Math.max(0,en-st-b);
+  work=Math.floor(work/15)*15;
 
-  let rawOvertime=Math.max(0,work-480);
-  let overtime=Math.floor(rawOvertime/15)*15;
+  let overtime=Math.max(0,work-480);
+  overtime=Math.floor(overtime/15)*15;
 
-  let rawNight=Math.max(0,en-Math.max(st,1320)-nb);
-  let night=Math.floor(rawNight/15)*15;
+  let night=Math.max(0,en-Math.max(st,1320)-nb);
+  night=Math.floor(night/15)*15;
 
   return[work,b,overtime,night];
 }
@@ -344,7 +353,8 @@ function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)|
 function renderEditRows(){let a=window._zuccaEdit||[];Q('editRows').innerHTML=a.map((v,i)=>'<div class="row" style="margin-top:8px"><select onchange="_zuccaEdit['+i+'][0]=this.value" style="flex:1"><option'+(v[0]=='出勤'?' selected':'')+'>出勤</option><option'+(v[0]=='休憩開始'?' selected':'')+'>休憩開始</option><option'+(v[0]=='休憩終了'?' selected':'')+'>休憩終了</option><option'+(v[0]=='退勤'?' selected':'')+'>退勤</option></select><input type="time" step="60" value="'+escAttr(v[1])+'" onchange="_zuccaEdit['+i+'][1]=this.value" style="flex:1"><button class="del" onclick="deleteEditRow('+i+')">削除</button></div>').join('')||'<p class="note">打刻なし</p>'}
 function addEditRow(){window._zuccaEdit=window._zuccaEdit||[];window._zuccaEdit.push(['出勤','09:00']);renderEditRows()}
 function deleteEditRow(i){if(!confirm('この打刻を削除しますか？'))return;window._zuccaEdit.splice(i,1);renderEditRows()}
-function saveEdits(){defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],v[1]]);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
+function saveEdits(){
+  editRows=editRows.map(v=>[v[0],roundPunchTime(v[0],v[1])]);defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],v[1]]);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
 function login(){if(Q('pin').value==='1234'){Q('pb').classList.add('hide');Q('ad').classList.remove('hide');defaultEditDate();rs();rl();renderWages();allSummary()}else alert('PINが違います')}
 function add(){let n=Q('nn').value.trim(),a=staff();if(!n||a.includes(n))return;a.push(n);localStorage.setItem(SK,JSON.stringify(a));unmarkStaffDeleted(n);Q('nn').value='';rs();cloudAddStaff(n)} function del(n){if(confirm(n+'を削除しますか？')){localStorage.setItem(SK,JSON.stringify(staff().filter(x=>x!==n)));rs();cloudDeleteStaff(n)}}
 function rl(){const box=Q('list');box.replaceChildren();staff().forEach(n=>{const row=document.createElement('div');row.className='sr';const sp=document.createElement('span');sp.textContent=n;const b=document.createElement('button');b.className='del';b.textContent='削除';b.onclick=()=>del(n);row.append(sp,b);box.appendChild(row)})}
