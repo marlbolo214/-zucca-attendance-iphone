@@ -81,10 +81,10 @@
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
 <div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><div class="tw"><table><thead><tr><th>日付</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
-<p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰後に同期します。</p>
+<p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰時・画面復帰時・30秒ごとに未同期データを自動再送します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
 <div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
-<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v30：待機中</div>
+<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v31：待機中</div>
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
 <hr><b>時給設定</b>
 <p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
@@ -115,9 +115,9 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v30 admin/cloud diagnostics fix
+// ZUCCA Attendance v31 all-staff calculation/save fix
 
-const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];
+const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
 const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1';
 let cloudBusy=false;
@@ -126,7 +126,7 @@ function cloudSetStatus(msg,ok=true){
   let text=String(msg||'');
   let el=Q('cloudStatus');if(el)el.textContent='クラウド：'+text;
   let ad=Q('cloudAdminMsg');if(ad)ad.textContent=text;
-  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v30\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
+  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v31\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
 }
 function cloudSession(){try{return JSON.parse(localStorage.getItem(CK)||'null')}catch(e){return null}}
 function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else localStorage.removeItem(CK)}
@@ -202,17 +202,93 @@ async function cloudSyncStaff(){let local=staff(),w=wages(),tr=transports();for(
 async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&order=work_date.asc,position.asc,id.asc');return await r.json()}
 async function fetchCloudStaff(){let r=await authFetch('/rest/v1/staff_members?select=name,active,sort_order,hourly_wage,transport_per_day&order=sort_order.asc,name.asc');return await r.json()}
 function allLocalDays(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),out=[];for(let [s,days] of Object.entries(x))for(let [d,a] of Object.entries(days||{}))if(Array.isArray(a)&&a.length)out.push([s,d,a]);return out}
-async function syncCloud(showMsg=false){if(cloudBusy||!cloudSession()){if(showMsg&&!cloudSession())cloudSetStatus('未接続（端末内保存で利用中）');return}cloudBusy=true;try{cloudSetStatus('同期中…');let dirty=dirtySet();for(let k of [...dirty]){let [s,d]=k.split('|'),x=JSON.parse(localStorage.getItem(DK)||'{}');await cloudReplaceDay(s,d,x[s]?.[d]||[])}let rows=await fetchCloudAttendance();if(!rows.length){for(let [s,d,a] of allLocalDays())await cloudReplaceDay(s,d,a);rows=await fetchCloudAttendance()}let x=JSON.parse(localStorage.getItem(DK)||'{}');let cloudKeys=new Set();for(let r of rows){let s=r.staff_name,d=r.work_date,t=String(r.punch_time||'').slice(0,5);x[s]??={};if(!cloudKeys.has(s+'|'+d)){x[s][d]=[];cloudKeys.add(s+'|'+d)}x[s][d].push([r.punch_type,t])}localStorage.setItem(DK,JSON.stringify(x));await cloudSyncStaff();let sr=await fetchCloudStaff();let active=sr.filter(v=>v.active).map(v=>v.name);if(active.length)localStorage.setItem(SK,JSON.stringify(active));let cw=wages(),ct=transports();
-sr.forEach(v=>{
-  if(!v.active)return;
-  let hw=Number(v.hourly_wage||0),tp=Number(v.transport_per_day||0);
-  if(hw>0)cw[v.name]=hw; else delete cw[v.name];
-  if(tp>0)ct[v.name]=tp; else delete ct[v.name];
-});
-localStorage.setItem(WK,JSON.stringify(cw));
-localStorage.setItem(TK,JSON.stringify(ct));
-rs();cloudSetStatus('同期済み ✓');}catch(err){console.error(err);cloudSetStatus('未同期（端末内には保存済み）',false)}finally{cloudBusy=false}}
-async function cloudAfterDayChange(s,d,a){markDirty(s,d);if(cloudSession())try{cloudSetStatus('同期中…');await cloudReplaceDay(s,d,a);cloudSetStatus('同期済み ✓')}catch(e){cloudSetStatus('未同期（端末内には保存済み）',false)}}
+async function syncCloud(showMsg=false){
+  if(cloudBusy)return;
+  if(!cloudSession()){
+    if(showMsg)cloudSetStatus('未接続（端末内保存で利用中）',false);
+    return;
+  }
+  cloudBusy=true;
+  try{
+    cloudSetStatus('同期中…');
+    let dirty=dirtySet();
+
+    // 端末で変更した日を先にクラウドへ送る
+    for(let k of [...dirty]){
+      let [s,d]=k.split('|'),
+          x=JSON.parse(localStorage.getItem(DK)||'{}');
+      await cloudReplaceDay(s,d,x[s]?.[d]||[]);
+    }
+
+    let rows=await fetchCloudAttendance();
+    if(!rows.length){
+      for(let [s,d,a] of allLocalDays())await cloudReplaceDay(s,d,a);
+      rows=await fetchCloudAttendance();
+    }
+
+    // クラウドの打刻を端末へ反映
+    let x=JSON.parse(localStorage.getItem(DK)||'{}');
+    let cloudKeys=new Set();
+    for(let r of rows){
+      let sn=r.staff_name,d=r.work_date,t=String(r.punch_time||'').slice(0,5);
+      x[sn]??={};
+      if(!cloudKeys.has(sn+'|'+d)){
+        x[sn][d]=[];
+        cloudKeys.add(sn+'|'+d);
+      }
+      x[sn][d].push([r.punch_type,t]);
+    }
+    localStorage.setItem(DK,JSON.stringify(x));
+
+    // スタッフ・時給・交通費も同期
+    await cloudSyncStaff();
+    let sr=await fetchCloudStaff();
+    let active=sr.filter(v=>v.active).map(v=>v.name);
+    if(active.length)localStorage.setItem(SK,JSON.stringify(active));
+
+    let cw=wages(),ct=transports();
+    sr.forEach(v=>{
+      if(!v.active)return;
+      let hw=Number(v.hourly_wage||0),tp=Number(v.transport_per_day||0);
+      if(hw>0)cw[v.name]=hw; else delete cw[v.name];
+      if(tp>0)ct[v.name]=tp; else delete ct[v.name];
+    });
+    localStorage.setItem(WK,JSON.stringify(cw));
+    localStorage.setItem(TK,JSON.stringify(ct));
+
+    rs();
+    cloudSetStatus('同期済み ✓');
+  }catch(err){
+    console.error('syncCloud error:',err);
+    cloudSetStatus('未同期（端末内には保存済み）\n'+cloudErrorText(err),false);
+  }finally{
+    cloudBusy=false;
+  }
+}
+let cloudRetryTimer=null;
+function scheduleCloudRetry(){
+  if(cloudRetryTimer)clearTimeout(cloudRetryTimer);
+  cloudRetryTimer=setTimeout(async()=>{
+    cloudRetryTimer=null;
+    if(cloudSession()&&dirtySet().size)await syncCloud(false);
+  },5000);
+}
+async function cloudAfterDayChange(s,d,a){
+  markDirty(s,d);
+  if(!cloudSession()){
+    cloudSetStatus('未接続（端末内保存で利用中）',false);
+    return;
+  }
+  try{
+    cloudSetStatus('同期中…');
+    await cloudReplaceDay(s,d,a);
+    cloudSetStatus('同期済み ✓');
+  }catch(e){
+    console.error('cloudAfterDayChange error:',e);
+    cloudSetStatus('未同期（端末内には保存済み）\n自動で再試行します。\n'+cloudErrorText(e),false);
+    scheduleCloudRetry();
+  }
+}
 async function cloudAddStaff(n){if(!cloudSession())return;try{await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({name:n,active:true,sort_order:staff().indexOf(n),hourly_wage:Number(wages()[n]||0),transport_per_day:Number(transports()[n]||0)})});unmarkStaffDeleted(n);cloudSetStatus('同期済み ✓')}catch(e){cloudSetStatus('スタッフ変更は端末内のみ保存',false)}}
 async function cloudDeleteStaff(n){markStaffDeleted(n);if(!cloudSession())return;try{await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(n),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})});cloudSetStatus('同期済み ✓')}catch(e){cloudSetStatus('スタッフ変更は端末内のみ保存',false)}}
 
@@ -264,8 +340,8 @@ function migrateData(){try{
   // 初回だけ旧名の修正と初期スタッフ登録を行う。削除後は自動復活させない。
   const MK='zucca_staff_migrated_v16';
   let raw=localStorage.getItem(SK),a=raw?JSON.parse(raw):[];
-  const rename={'シナ':'シャナ','リュウセイ':'リュウエイ','リクタイ':'リュウエイ'};
-  const remove=new Set(['ショウタ','シェフ','オギ']);
+  const rename={'シナ':'シャナ','リュウセイ':'リュウエイ','リクタイ':'リュウエイ','シュウ':'シェフ'};
+  const remove=new Set([]);
   a=(Array.isArray(a)?a:[]).map(n=>rename[n]||n).filter(n=>!remove.has(n));
   if(!localStorage.getItem(MK)){
     if(!raw||!a.length) a=[...DEF];
@@ -420,12 +496,41 @@ function renderEditRows(){let a=window._zuccaEdit||[];Q('editRows').innerHTML=a.
 function addEditRow(){window._zuccaEdit=window._zuccaEdit||[];window._zuccaEdit.push(['出勤','09:00']);renderEditRows()}
 function deleteEditRow(i){if(!confirm('この打刻を削除しますか？'))return;window._zuccaEdit.splice(i,1);renderEditRows()}
 function saveEdits(){
-  editRows=editRows.map(v=>[v[0],roundPunchTime(v[0],v[1])]);defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],v[1]]);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
+  defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);window._zuccaEdit=a;let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
 function login(){if(Q('pin').value==='1234'){Q('pb').classList.add('hide');Q('ad').classList.remove('hide');defaultEditDate();rs();rl();renderWages();allSummary()}else alert('PINが違います')}
 function add(){let n=Q('nn').value.trim(),a=staff();if(!n||a.includes(n))return;a.push(n);localStorage.setItem(SK,JSON.stringify(a));unmarkStaffDeleted(n);Q('nn').value='';rs();cloudAddStaff(n)} function del(n){if(confirm(n+'を削除しますか？')){localStorage.setItem(SK,JSON.stringify(staff().filter(x=>x!==n)));rs();cloudDeleteStaff(n)}}
 function rl(){const box=Q('list');box.replaceChildren();staff().forEach(n=>{const row=document.createElement('div');row.className='sr';const sp=document.createElement('span');sp.textContent=n;const b=document.createElement('button');b.className='del';b.textContent='削除';b.onclick=()=>del(n);row.append(sp,b);box.appendChild(row)})}
-function csv(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),r=range(),lines=['スタッフ,期間,出勤日数,時給,実働,休憩,残業,残業割増額,深夜,深夜割増額,給与目安'];staff().forEach(s=>{let t=staffTotal(x,s),rate=Number(w[s]||0),p=payrollDetail(t,rate);lines.push('"'+s.replace(/"/g,'""')+'","'+iso(r[0])+'～'+iso(r[1])+'",'+t[0]+','+rate+','+fmt(t[1])+','+fmt(t[2])+','+fmt(t[3])+','+Math.round(p.overtimePremium)+','+fmt(t[4])+','+Math.round(p.nightPremium)+','+Math.round(p.total))});let blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZUCCA勤怠給与_'+iso(r[0])+'_'+iso(r[1])+'.csv';a.click();URL.revokeObjectURL(a.href)}
+function csv(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports(),r=range(),lines=['スタッフ,期間,出勤日数,時給,実働,休憩,残業,残業割増額,深夜,深夜割増額,交通費,支給額'];staff().forEach(s=>{let t=staffTotal(x,s),rate=Number(w[s]||0),p=payrollDetail(t,rate,Number(tr[s]||0));lines.push('"'+s.replace(/"/g,'""')+'","'+iso(r[0])+'～'+iso(r[1])+'",'+t[0]+','+rate+','+fmt(t[1])+','+fmt(t[2])+','+fmt(t[3])+','+Math.round(p.overtimePremium)+','+fmt(t[4])+','+Math.round(p.nightPremium)+','+Math.round(p.transport)+','+Math.round(p.total))});let blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZUCCA勤怠給与_'+iso(r[0])+'_'+iso(r[1])+'.csv';a.click();URL.revokeObjectURL(a.href)}
 function printReport(){Q('printAll').classList.remove('hide');window.print();setTimeout(()=>Q('printAll').classList.add('hide'),500)}
-function init(){const st=Q('staff');if(st){st.addEventListener('change',render);st.addEventListener('input',render)}setInterval(()=>{const c=Q('clock');if(c)c.textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})},1000);rs();if(cloudSession())syncCloud();window.addEventListener('focus',()=>{if(cloudSession())syncCloud()});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cloudSession())syncCloud()})}
+function init(){
+  const st=Q('staff');
+  if(st){
+    st.addEventListener('change',render);
+    st.addEventListener('input',render);
+  }
+  setInterval(()=>{
+    const c=Q('clock');
+    if(c)c.textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  },1000);
+
+  rs();
+
+  if(cloudSession())syncCloud();
+
+  window.addEventListener('focus',()=>{
+    if(cloudSession())syncCloud();
+  });
+  window.addEventListener('online',()=>{
+    if(cloudSession())syncCloud(true);
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden&&cloudSession())syncCloud();
+  });
+
+  // 未同期の変更が残っている場合は30秒ごとに自動再試行
+  setInterval(()=>{
+    if(cloudSession()&&dirtySet().size&&!cloudBusy)syncCloud(false);
+  },30000);
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 </script></body></html>
