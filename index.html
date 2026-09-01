@@ -84,7 +84,7 @@
 <p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰時・画面復帰時・30秒ごとに未同期データを自動再送します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
 <div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
-<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v31：待機中</div>
+<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v33：待機中</div>
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
 <hr><b>時給設定</b>
 <p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
@@ -126,7 +126,7 @@ function cloudSetStatus(msg,ok=true){
   let text=String(msg||'');
   let el=Q('cloudStatus');if(el)el.textContent='クラウド：'+text;
   let ad=Q('cloudAdminMsg');if(ad)ad.textContent=text;
-  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v31\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
+  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v33\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
 }
 function cloudSession(){try{return JSON.parse(localStorage.getItem(CK)||'null')}catch(e){return null}}
 function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else localStorage.removeItem(CK)}
@@ -397,6 +397,12 @@ function roundPunchTime(kind,time){
 function calc(a){
   // 計算時も、出勤↑・休憩開始↓・休憩終了↑・退勤↓ の15分ルールを必ず適用
   let aa=(a||[]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);
+  // 修正画面や旧データで「出勤」が2回になっている場合、退勤が無ければ最後の出勤を退勤として扱う。
+  // これにより休憩なしの「出勤→退勤」だけの日も全スタッフ共通で実働計算できる。
+  if(!aa.some(v=>v[0]==='退勤')){
+    let ins=[];aa.forEach((v,i)=>{if(v[0]==='出勤')ins.push(i)});
+    if(ins.length>=2)aa[ins[ins.length-1]][0]='退勤';
+  }
   let ci=aa.find(v=>v[0]=='出勤'),
       co=[...aa].reverse().find(v=>v[0]=='退勤'),
       b=0,nb=0,op=null;
@@ -492,7 +498,7 @@ function allSummary(){
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function defaultEditDate(){if(Q('editDate')&&!Q('editDate').value)Q('editDate').value=iso(new Date())}
 function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('editStaff').value,d=Q('editDate').value,a=(x[s]?.[d]||[]).map(v=>[v[0],v[1]]);window._zuccaEdit=a;renderEditRows();Q('editMsg').textContent=a.length?'打刻を読み込みました':'この日の打刻はありません。必要なら「打刻を追加」できます。'}
-function renderEditRows(){let a=window._zuccaEdit||[];Q('editRows').innerHTML=a.map((v,i)=>'<div class="row" style="margin-top:8px"><select onchange="_zuccaEdit['+i+'][0]=this.value" style="flex:1"><option'+(v[0]=='出勤'?' selected':'')+'>出勤</option><option'+(v[0]=='休憩開始'?' selected':'')+'>休憩開始</option><option'+(v[0]=='休憩終了'?' selected':'')+'>休憩終了</option><option'+(v[0]=='退勤'?' selected':'')+'>退勤</option></select><input type="time" step="60" value="'+escAttr(v[1])+'" onchange="_zuccaEdit['+i+'][1]=this.value" style="flex:1"><button class="del" onclick="deleteEditRow('+i+')">削除</button></div>').join('')||'<p class="note">打刻なし</p>'}
+function renderEditRows(){let a=window._zuccaEdit||[];Q('editRows').innerHTML=a.map((v,i)=>'<div class="row" style="margin-top:8px"><select onchange="_zuccaEdit['+i+'][0]=this.value" style="flex:1"><option'+(v[0]=='出勤'?' selected':'')+'>出勤</option><option'+(v[0]=='休憩開始'?' selected':'')+'>休憩開始</option><option'+(v[0]=='休憩終了'?' selected':'')+'>休憩終了</option><option'+(v[0]=='退勤'?' selected':'')+'>退勤</option></select><input type="time" step="900" value="'+escAttr(v[1])+'" onchange="_zuccaEdit['+i+'][1]=this.value" style="flex:1"><button class="del" onclick="deleteEditRow('+i+')">削除</button></div>').join('')||'<p class="note">打刻なし</p>'}
 function addEditRow(){window._zuccaEdit=window._zuccaEdit||[];window._zuccaEdit.push(['出勤','09:00']);renderEditRows()}
 function deleteEditRow(i){if(!confirm('この打刻を削除しますか？'))return;window._zuccaEdit.splice(i,1);renderEditRows()}
 function saveEdits(){
