@@ -1,4 +1,4 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ZUCCA 勤怠</title>
+<!doctype html><html lang="ja"><head><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>ZUCCA 勤怠</title>
 <meta name="theme-color" content="#111827">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -77,13 +77,14 @@
 
 @media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}</style></head><body>
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
-<div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／退勤は15分単位で切り下げ／休憩開始は15分単位で切り下げ／休憩終了は15分単位で繰り上げ／実働・残業・深夜は15分単位で切り下げ</p></div>
+<div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
 <div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><div class="tw"><table><thead><tr><th>日付</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
 <p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰後に同期します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
-<div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
+<div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
+<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v29：待機中</div>
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
 <hr><b>時給設定</b>
 <p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
@@ -114,12 +115,20 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
+// ZUCCA Attendance v29 cloud diagnostics
+
 const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
 const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1';
 let cloudBusy=false;
 
-function cloudSetStatus(msg,ok=true){let el=Q('cloudStatus');if(el)el.textContent='クラウド：'+msg;let ad=Q('cloudAdminMsg');if(ad)ad.textContent=msg}
+function cloudSetStatus(msg,ok=true){
+  let text=String(msg||'');
+  let el=Q('cloudStatus');if(el)el.textContent='クラウド：'+text;
+  let ad=Q('cloudAdminMsg');if(ad)ad.textContent=text;
+  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v29
+'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
+}
 function cloudSession(){try{return JSON.parse(localStorage.getItem(CK)||'null')}catch(e){return null}}
 function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else localStorage.removeItem(CK)}
 async function authFetch(path,opt={}){let s=cloudSession();if(!s?.access_token)throw new Error('クラウド未接続');let h=Object.assign({'apikey':SUPABASE_KEY,'Authorization':'Bearer '+s.access_token,'Content-Type':'application/json'},opt.headers||{});let r=await fetch(SUPABASE_URL+path,Object.assign({},opt,{headers:h}));if(r.status===401&&s.refresh_token){let rr=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});if(rr.ok){let ns=await rr.json();saveCloudSession(ns);h.Authorization='Bearer '+ns.access_token;r=await fetch(SUPABASE_URL+path,Object.assign({},opt,{headers:h}))}}if(!r.ok){let t=await r.text();throw new Error(t||('HTTP '+r.status))}return r}
@@ -131,35 +140,57 @@ function cloudErrorText(err){
     msg=j.msg||j.message||j.error_description||j.error||raw;
   }catch(e){}
   const low=String(msg).toLowerCase();
-  if(low.includes('invalid login credentials')) return '接続失敗：メールアドレスまたはパスワードが違います。\n詳細：'+msg;
-  if(low.includes('email not confirmed')) return '接続失敗：メール認証が完了していません。Supabaseからの確認メールを確認してください。\n詳細：'+msg;
-  if(low.includes('user not found')) return '接続失敗：このメールアドレスのユーザーが見つかりません。\n詳細：'+msg;
-  if(low.includes('failed to fetch')||low.includes('network')) return '接続失敗：ネットワークまたはSupabaseへの接続に失敗しました。\n詳細：'+msg;
-  return '接続失敗：'+msg;
+  if(low.includes('invalid login credentials')) return 'メールアドレスまたはパスワードが違います。\nSupabase応答: '+msg;
+  if(low.includes('email not confirmed')) return 'メール認証が完了していません。\nSupabase応答: '+msg;
+  if(low.includes('user not found')) return 'このメールアドレスのユーザーが見つかりません。\nSupabase応答: '+msg;
+  if(low.includes('failed to fetch')||low.includes('network')) return 'Supabaseへ通信できません。\nSupabase応答: '+msg;
+  return msg;
+}
+async function cloudTest(){
+  cloudSetStatus('接続テスト中…');
+  try{
+    let r=await fetch(SUPABASE_URL+'/auth/v1/health',{headers:{'apikey':SUPABASE_KEY}});
+    let body=await r.text();
+    if(!r.ok)throw new Error('HTTP '+r.status+' '+body);
+    cloudSetStatus('Supabaseへの通信は正常です。\n次にメールとパスワードを入力して「クラウド接続」を押してください。');
+    alert('Supabaseへの通信は正常です');
+  }catch(err){
+    let msg='接続テスト失敗：'+cloudErrorText(err);
+    cloudSetStatus(msg,false);
+    alert(msg);
+  }
 }
 async function cloudLogin(){
   let e=Q('cloudEmail')?.value.trim(),p=Q('cloudPassword')?.value;
-  if(!e||!p){cloudSetStatus('メールとパスワードを入力してください',false);return}
+  if(!e||!p){
+    let msg='メールとパスワードを両方入力してください。';
+    cloudSetStatus(msg,false);alert(msg);return;
+  }
   try{
-    cloudSetStatus('接続中…');
+    cloudSetStatus('認証中…\nメール: '+e);
     let r=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{
       method:'POST',
       headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
       body:JSON.stringify({email:e,password:p})
     });
-    if(!r.ok){
-      let body=await r.text();
-      throw new Error(body||('HTTP '+r.status));
-    }
-    saveCloudSession(await r.json());
+    let body=await r.text();
+    if(!r.ok)throw new Error('HTTP '+r.status+' '+body);
+    let session=JSON.parse(body);
+    if(!session?.access_token)throw new Error('認証応答にaccess_tokenがありません: '+body);
+    saveCloudSession(session);
     Q('cloudPassword').value='';
-    cloudSetStatus('認証成功。同期しています…');
+    cloudSetStatus('認証成功 ✓\n勤怠データを同期しています…');
     await syncCloud(true);
+    cloudSetStatus('認証・同期ともに成功しました ✓');
+    alert('クラウド接続・同期に成功しました');
   }catch(err){
     console.error('Cloud login error:',err);
-    cloudSetStatus(cloudErrorText(err),false);
+    let msg='接続失敗：'+cloudErrorText(err);
+    cloudSetStatus(msg,false);
+    alert(msg);
   }
 }
+
 function cloudLogout(){saveCloudSession(null);cloudSetStatus('未接続（端末内保存で利用中）');}
 function dirtySet(){try{return new Set(JSON.parse(localStorage.getItem(DIRTY)||'[]'))}catch(e){return new Set()}}
 function markDirty(s,d){let z=dirtySet();z.add(s+'|'+d);localStorage.setItem(DIRTY,JSON.stringify([...z]))}
@@ -276,39 +307,48 @@ function punchTime(kind){
 }
 function stamp(k){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,day=iso(new Date());if(!s)return;x[s]??={};x[s][day]??=[];x[s][day].push([k,punchTime(k)]);localStorage.setItem(DK,JSON.stringify(x));render();allSummary();cloudAfterDayChange(s,day,x[s][day])}
 function mins(t){let a=t.split(':').map(Number);return a[0]*60+a[1]} function fmt(n){if(n==null)return'--';n=Math.max(0,Math.round(n));return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')}
-function calc(a){
-  let ci=a.find(v=>v[0]=='出勤'),
-      co=[...a].reverse().find(v=>v[0]=='退勤'),
-      rawBreak=0,rawNightBreak=0,op=null;
+function roundPunchTime(kind,time){
+  if(!time)return time;
+  let [h,m]=time.split(':').map(Number);
+  if(kind==='出勤' || kind==='休憩終了'){
+    m=Math.ceil(m/15)*15;
+  }else if(kind==='退勤' || kind==='休憩開始'){
+    m=Math.floor(m/15)*15;
+  }
+  if(m===60){h++;m=0}
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
 
-  for(let v of a){
+function calc(a){
+  // 計算時も、出勤↑・休憩開始↓・休憩終了↑・退勤↓ の15分ルールを必ず適用
+  let aa=(a||[]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);
+  let ci=aa.find(v=>v[0]=='出勤'),
+      co=[...aa].reverse().find(v=>v[0]=='退勤'),
+      b=0,nb=0,op=null;
+
+  for(let v of aa){
     if(v[0]=='休憩開始')op=mins(v[1]);
     if(v[0]=='休憩終了'&&op!=null){
       let e=mins(v[1]);
-      rawBreak+=Math.max(0,e-op);
-      rawNightBreak+=Math.max(0,e-Math.max(op,1320));
+      b+=Math.max(0,e-op);
+      nb+=Math.max(0,e-Math.max(op,1320));
       op=null;
     }
   }
-
-  // 休憩時間も15分単位で切り下げ
-  let b=Math.floor(rawBreak/15)*15;
-  let nb=Math.floor(rawNightBreak/15)*15;
 
   if(!ci||!co)return[null,b,null,null];
 
   let st=mins(ci[1]),en=mins(co[1]);
   if(en<st)en+=1440;
 
-  // 実働・残業・深夜も15分単位で切り下げ
-  let rawWork=Math.max(0,en-st-b);
-  let work=Math.floor(rawWork/15)*15;
+  let work=Math.max(0,en-st-b);
+  work=Math.floor(work/15)*15;
 
-  let rawOvertime=Math.max(0,work-480);
-  let overtime=Math.floor(rawOvertime/15)*15;
+  let overtime=Math.max(0,work-480);
+  overtime=Math.floor(overtime/15)*15;
 
-  let rawNight=Math.max(0,en-Math.max(st,1320)-nb);
-  let night=Math.floor(rawNight/15)*15;
+  let night=Math.max(0,en-Math.max(st,1320)-nb);
+  night=Math.floor(night/15)*15;
 
   return[work,b,overtime,night];
 }
@@ -380,7 +420,8 @@ function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)|
 function renderEditRows(){let a=window._zuccaEdit||[];Q('editRows').innerHTML=a.map((v,i)=>'<div class="row" style="margin-top:8px"><select onchange="_zuccaEdit['+i+'][0]=this.value" style="flex:1"><option'+(v[0]=='出勤'?' selected':'')+'>出勤</option><option'+(v[0]=='休憩開始'?' selected':'')+'>休憩開始</option><option'+(v[0]=='休憩終了'?' selected':'')+'>休憩終了</option><option'+(v[0]=='退勤'?' selected':'')+'>退勤</option></select><input type="time" step="60" value="'+escAttr(v[1])+'" onchange="_zuccaEdit['+i+'][1]=this.value" style="flex:1"><button class="del" onclick="deleteEditRow('+i+')">削除</button></div>').join('')||'<p class="note">打刻なし</p>'}
 function addEditRow(){window._zuccaEdit=window._zuccaEdit||[];window._zuccaEdit.push(['出勤','09:00']);renderEditRows()}
 function deleteEditRow(i){if(!confirm('この打刻を削除しますか？'))return;window._zuccaEdit.splice(i,1);renderEditRows()}
-function saveEdits(){defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],v[1]]);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
+function saveEdits(){
+  editRows=editRows.map(v=>[v[0],roundPunchTime(v[0],v[1])]);defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],v[1]]);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
 function login(){if(Q('pin').value==='1234'){Q('pb').classList.add('hide');Q('ad').classList.remove('hide');defaultEditDate();rs();rl();renderWages();allSummary()}else alert('PINが違います')}
 function add(){let n=Q('nn').value.trim(),a=staff();if(!n||a.includes(n))return;a.push(n);localStorage.setItem(SK,JSON.stringify(a));unmarkStaffDeleted(n);Q('nn').value='';rs();cloudAddStaff(n)} function del(n){if(confirm(n+'を削除しますか？')){localStorage.setItem(SK,JSON.stringify(staff().filter(x=>x!==n)));rs();cloudDeleteStaff(n)}}
 function rl(){const box=Q('list');box.replaceChildren();staff().forEach(n=>{const row=document.createElement('div');row.className='sr';const sp=document.createElement('span');sp.textContent=n;const b=document.createElement('button');b.className='del';b.textContent='削除';b.onclick=()=>del(n);row.append(sp,b);box.appendChild(row)})}
