@@ -75,7 +75,14 @@
 #transportRows .staffrow{display:grid;grid-template-columns:1fr minmax(130px,220px);align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #e5e7eb}
 #transportRows input{width:100%;box-sizing:border-box}
 
-@media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}.timeSelectWrap{display:flex;gap:8px;flex:1}.timeSelectWrap select{flex:1;min-width:0}</style></head><body>
+@media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}.timeSelectWrap{display:grid;grid-template-columns:minmax(88px,1fr) auto minmax(88px,1fr) auto;gap:6px;align-items:center;flex:1}
+.timeSelectWrap select{width:100%;min-width:0;text-align:center;font-size:18px;font-weight:700;padding:13px 8px}
+.timeUnit{font-size:15px;font-weight:800;color:#4b5563;white-space:nowrap}
+@media(max-width:640px){
+  .timeSelectWrap{grid-template-columns:minmax(76px,1fr) auto minmax(76px,1fr) auto;gap:5px}
+  .timeSelectWrap select{font-size:17px;padding:12px 6px}
+  .timeUnit{font-size:14px}
+}</style></head><body>
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
 <div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
@@ -94,7 +101,7 @@
 <hr><b>交通費設定</b>
 <p class="note">スタッフごとに「1日あたりの交通費」を登録します。締め日集計では 出勤日数 × 1日交通費 を自動加算します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を15分単位（00・15・30・45）で修正できます。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
+<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
   <div class="payLegend">
@@ -115,7 +122,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v35 custom 15-min selector
+// ZUCCA Attendance v36 labeled 15-min time selector
 
 // ZUCCA Attendance v31 all-staff calculation/save fix
 
@@ -510,7 +517,7 @@ function renderEditRows(){
     let [hh,mm]=normalized.split(':');
     window._zuccaEdit[i][1]=normalized;
 
-    let hourOptions=hours.map(h=>'<option value="'+h+'"'+(h===hh?' selected':'')+'>'+Number(h)+'</option>').join('');
+    let hourOptions=hours.map(h=>'<option value="'+h+'"'+(h===hh?' selected':'')+'>'+h+'</option>').join('');
     let minOptions=mins15.map(m=>'<option value="'+m+'"'+(m===mm?' selected':'')+'>'+m+'</option>').join('');
 
     return '<div class="row" style="margin-top:8px">'+
@@ -521,8 +528,10 @@ function renderEditRows(){
         '<option'+(v[0]=='退勤'?' selected':'')+'>退勤</option>'+
       '</select>'+
       '<div class="timeSelectWrap">'+
-        '<select onchange="_zuccaEdit['+i+'][1]=this.value+\':\'+(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[1]">'+hourOptions+'</select>'+
-        '<select onchange="_zuccaEdit['+i+'][1]=(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[0]+\':\'+this.value">'+minOptions+'</select>'+
+        '<select aria-label="時" onchange="_zuccaEdit['+i+'][1]=this.value+\':\'+(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[1]">'+hourOptions+'</select>'+
+        '<span class="timeUnit">時</span>'+
+        '<select aria-label="分" onchange="_zuccaEdit['+i+'][1]=(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[0]+\':\'+this.value">'+minOptions+'</select>'+
+        '<span class="timeUnit">分</span>'+
       '</div>'+
       '<button class="del" onclick="deleteEditRow('+i+')">削除</button>'+
     '</div>';
