@@ -97,6 +97,40 @@
   .editRow>select:first-child{min-width:132px!important;font-size:15px!important}
 }
 
+
+/* v38: mobile-friendly edit layout */
+.editRow{
+  display:grid!important;
+  grid-template-columns:minmax(150px,1.2fr) minmax(260px,2fr) 88px!important;
+  gap:8px!important;
+  align-items:center;
+  padding:8px 0;
+}
+.editRow .punchType{width:100%!important;min-width:150px!important}
+.editRow .deleteWrap{display:flex;justify-content:flex-end}
+.editRow .deleteWrap .del{width:100%;max-width:88px}
+@media(max-width:640px){
+  .editRow{
+    grid-template-columns:1fr!important;
+    gap:8px!important;
+    border-bottom:1px solid #e5e7eb;
+    padding:12px 0;
+  }
+  .editRow .punchType{
+    width:100%!important;
+    min-width:0!important;
+    font-size:17px!important;
+    font-weight:800!important;
+  }
+  .editRow .timeSelectWrap{
+    width:100%!important;
+    min-width:0!important;
+    grid-template-columns:minmax(90px,1fr) auto minmax(90px,1fr) auto!important;
+  }
+  .editRow .deleteWrap{justify-content:flex-end}
+  .editRow .deleteWrap .del{width:auto;min-width:88px;max-width:none}
+}
+
 </style></head><body>
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
 <div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
@@ -137,7 +171,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v37 wider punch-type selector
+// ZUCCA Attendance v38 mobile-friendly edit layout
 
 // ZUCCA Attendance v31 all-staff calculation/save fix
 
@@ -522,6 +556,18 @@ function allSummary(){
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function defaultEditDate(){if(Q('editDate')&&!Q('editDate').value)Q('editDate').value=iso(new Date())}
 function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('editStaff').value,d=Q('editDate').value,a=(x[s]?.[d]||[]).map(v=>[v[0],v[1]]);window._zuccaEdit=a;renderEditRows();Q('editMsg').textContent=a.length?'打刻を読み込みました':'この日の打刻はありません。必要なら「打刻を追加」できます。'}
+
+function setEditHour(i,h){
+  let cur=(window._zuccaEdit[i]&&window._zuccaEdit[i][1])||'09:00';
+  let mm=cur.split(':')[1]||'00';
+  window._zuccaEdit[i][1]=h+':'+mm;
+}
+function setEditMinute(i,m){
+  let cur=(window._zuccaEdit[i]&&window._zuccaEdit[i][1])||'09:00';
+  let hh=cur.split(':')[0]||'09';
+  window._zuccaEdit[i][1]=hh+':'+m;
+}
+
 function renderEditRows(){
   let a=window._zuccaEdit||[];
   const hours=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
@@ -529,26 +575,27 @@ function renderEditRows(){
 
   Q('editRows').innerHTML=a.map((v,i)=>{
     let normalized=roundPunchTime(v[0],v[1]||'09:00');
-    let [hh,mm]=normalized.split(':');
+    let parts=normalized.split(':');
+    let hh=parts[0],mm=parts[1];
     window._zuccaEdit[i][1]=normalized;
 
     let hourOptions=hours.map(h=>'<option value="'+h+'"'+(h===hh?' selected':'')+'>'+h+'</option>').join('');
     let minOptions=mins15.map(m=>'<option value="'+m+'"'+(m===mm?' selected':'')+'>'+m+'</option>').join('');
 
-    return '<div class="row" style="margin-top:8px">'+
-      '<select onchange="_zuccaEdit['+i+'][0]=this.value;_zuccaEdit['+i+'][1]=roundPunchTime(this.value,_zuccaEdit['+i+'][1]);renderEditRows()" style="flex:1">'+
+    return '<div class="editRow">'+
+      '<select class="punchType" onchange="_zuccaEdit['+i+'][0]=this.value;_zuccaEdit['+i+'][1]=roundPunchTime(this.value,_zuccaEdit['+i+'][1]);renderEditRows()">'+
         '<option'+(v[0]=='出勤'?' selected':'')+'>出勤</option>'+
         '<option'+(v[0]=='休憩開始'?' selected':'')+'>休憩開始</option>'+
         '<option'+(v[0]=='休憩終了'?' selected':'')+'>休憩終了</option>'+
         '<option'+(v[0]=='退勤'?' selected':'')+'>退勤</option>'+
       '</select>'+
       '<div class="timeSelectWrap">'+
-        '<select aria-label="時" onchange="_zuccaEdit['+i+'][1]=this.value+\':\'+(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[1]">'+hourOptions+'</select>'+
+        '<select aria-label="時" onchange="setEditHour('+i+',this.value)">'+hourOptions+'</select>'+
         '<span class="timeUnit">時</span>'+
-        '<select aria-label="分" onchange="_zuccaEdit['+i+'][1]=(_zuccaEdit['+i+'][1]||\'09:00\').split(\':\')[0]+\':\'+this.value">'+minOptions+'</select>'+
+        '<select aria-label="分" onchange="setEditMinute('+i+',this.value)">'+minOptions+'</select>'+
         '<span class="timeUnit">分</span>'+
       '</div>'+
-      '<button class="del" onclick="deleteEditRow('+i+')">削除</button>'+
+      '<div class="deleteWrap"><button class="del" onclick="deleteEditRow('+i+')">削除</button></div>'+
     '</div>';
   }).join('')||'<p class="note">打刻なし</p>';
 }
