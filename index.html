@@ -82,7 +82,22 @@
   .timeSelectWrap{grid-template-columns:minmax(76px,1fr) auto minmax(76px,1fr) auto;gap:5px}
   .timeSelectWrap select{font-size:17px;padding:12px 6px}
   .timeUnit{font-size:14px}
-}</style></head><body>
+}
+/* v37: iPhone punch-edit row readability */
+.editRow{display:grid!important;grid-template-columns:minmax(138px,1.35fr) minmax(250px,2fr) 96px!important;gap:8px!important;align-items:center}
+.editRow>select:first-child{width:100%!important;min-width:138px!important;font-size:17px!important;font-weight:700!important;padding-left:12px!important;padding-right:30px!important}
+.editRow .timeSelectWrap{min-width:250px}
+@media(max-width:640px){
+  .editRow{grid-template-columns:minmax(128px,1.25fr) minmax(210px,2fr) 76px!important;gap:7px!important}
+  .editRow>select:first-child{min-width:128px!important;font-size:16px!important;padding-left:10px!important;padding-right:26px!important}
+  .editRow .timeSelectWrap{min-width:210px}
+}
+@media(max-width:430px){
+  .editRow{grid-template-columns:132px minmax(205px,1fr) 72px!important;gap:6px!important}
+  .editRow>select:first-child{min-width:132px!important;font-size:15px!important}
+}
+
+</style></head><body>
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
 <div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
@@ -122,7 +137,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v36 labeled 15-min time selector
+// ZUCCA Attendance v37 wider punch-type selector
 
 // ZUCCA Attendance v31 all-staff calculation/save fix
 
