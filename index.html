@@ -84,7 +84,7 @@
 <p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰後に同期します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
 <div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
-<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v29：待機中</div>
+<div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v30：待機中</div>
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
 <hr><b>時給設定</b>
 <p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
@@ -115,7 +115,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v29 cloud diagnostics
+// ZUCCA Attendance v30 admin/cloud diagnostics fix
 
 const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "シュウ"];
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
@@ -126,8 +126,7 @@ function cloudSetStatus(msg,ok=true){
   let text=String(msg||'');
   let el=Q('cloudStatus');if(el)el.textContent='クラウド：'+text;
   let ad=Q('cloudAdminMsg');if(ad)ad.textContent=text;
-  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v29
-'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
+  let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v30\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
 }
 function cloudSession(){try{return JSON.parse(localStorage.getItem(CK)||'null')}catch(e){return null}}
 function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else localStorage.removeItem(CK)}
