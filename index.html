@@ -137,7 +137,7 @@
 <div class="c"><b>本日の勤務</b><div id="log"></div><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
 <div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><div class="tw"><table><thead><tr><th>日付</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
-<p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。ネットが切れても端末内に保存し、復帰時・画面復帰時・30秒ごとに未同期データを自動再送します。</p>
+<p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。30秒ごとに他端末の打刻・時給・交通費も自動取得します。ネットが切れても端末内に保存し、復帰後に再同期します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
 <div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
 <div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v33：待機中</div>
@@ -171,7 +171,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v38 mobile-friendly edit layout
+// ZUCCA Attendance v39 cloud pull sync fix
 
 // ZUCCA Attendance v31 all-staff calculation/save fix
 
@@ -298,18 +298,25 @@ async function syncCloud(showMsg=false){
     }
     localStorage.setItem(DK,JSON.stringify(x));
 
-    // スタッフ・時給・交通費も同期
-    await cloudSyncStaff();
+    // スタッフ・時給・交通費は通常同期ではクラウドを正として取得する。
+    // 別端末の空欄データでクラウドを上書きしない。
     let sr=await fetchCloudStaff();
+
+    // クラウド側が完全に空の初回だけ、この端末の設定を登録する。
+    if(!sr.length){
+      await cloudSyncStaff();
+      sr=await fetchCloudStaff();
+    }
+
     let active=sr.filter(v=>v.active).map(v=>v.name);
     if(active.length)localStorage.setItem(SK,JSON.stringify(active));
 
-    let cw=wages(),ct=transports();
+    let cw={},ct={};
     sr.forEach(v=>{
       if(!v.active)return;
       let hw=Number(v.hourly_wage||0),tp=Number(v.transport_per_day||0);
-      if(hw>0)cw[v.name]=hw; else delete cw[v.name];
-      if(tp>0)ct[v.name]=tp; else delete ct[v.name];
+      if(hw>0)cw[v.name]=hw;
+      if(tp>0)ct[v.name]=tp;
     });
     localStorage.setItem(WK,JSON.stringify(cw));
     localStorage.setItem(TK,JSON.stringify(ct));
@@ -633,9 +640,10 @@ function init(){
     if(!document.hidden&&cloudSession())syncCloud();
   });
 
-  // 未同期の変更が残っている場合は30秒ごとに自動再試行
+  // 30秒ごとにクラウドを確認。
+  // 自分の未同期データ再送だけでなく、他端末の変更も自動で取り込む。
   setInterval(()=>{
-    if(cloudSession()&&dirtySet().size&&!cloudBusy)syncCloud(false);
+    if(cloudSession()&&!cloudBusy)syncCloud(false);
   },30000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
