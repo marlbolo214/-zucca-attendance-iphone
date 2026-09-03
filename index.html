@@ -172,6 +172,7 @@
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
+// ZUCCA Attendance v41 duplicate fullname repair
 // ZUCCA Attendance v40 staff rename + cloud history sync
 // ZUCCA Attendance v39 cloud pull sync fix
 
@@ -267,7 +268,9 @@ const DUPLICATE_STAFF_NAME_MAP={
   '小林千佑':'チヒロ',
   '寺崎雄介':'ユウスケ',
   '小栗碧':'アオイ',
-  '山本ゆい':'ユイ'
+  '山本ゆい':'ユイ',
+  '伊藤美優':'ミユ',
+  '青木那奈':'ナナ'
 };
 
 async function repairDuplicateCloudStaff(){
