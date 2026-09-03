@@ -173,6 +173,8 @@
 </div><script>
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
+// ZUCCA Attendance v42 duplicate-name cleanup 2
+// ZUCCA Attendance v43 duplicate-name attendance reconciliation fix
 // ZUCCA Attendance v40 staff rename + cloud history sync
 // ZUCCA Attendance v39 cloud pull sync fix
 
@@ -270,8 +272,41 @@ const DUPLICATE_STAFF_NAME_MAP={
   '小栗碧':'アオイ',
   '山本ゆい':'ユイ',
   '伊藤美優':'ミユ',
-  '青木那奈':'ナナ'
+  '青木那奈':'ナナ',
+  '立石琉瑛':'リュウエイ',
+  '宮本慶子':'ケイコ',
+  '椎谷彩月':'サツキ'
 };
+
+
+function punchSetScore(arr, preferAlias=false){
+  if(!Array.isArray(arr)||!arr.length)return -1;
+  const types=arr.map(v=>Array.isArray(v)?v[0]:v.punch_type);
+  const inN=types.filter(x=>x==='出勤').length;
+  const outN=types.filter(x=>x==='退勤').length;
+  const bs=types.filter(x=>x==='休憩開始').length;
+  const be=types.filter(x=>x==='休憩終了').length;
+  let score=0;
+  if(inN)score+=100;
+  if(outN)score+=100;
+  if(inN&&outN)score+=300;
+  score+=Math.min(bs,be)*40;
+  if(bs===be)score+=20;
+  score+=arr.length*3;
+  if(preferAlias)score+=0.5;
+  return score;
+}
+function normalizePunchSet(arr){
+  return (arr||[]).map((r,i)=>Array.isArray(r)?[r[0],String(r[1]||'').slice(0,5)]:[r.punch_type,String(r.punch_time||'').slice(0,5)]);
+}
+function chooseBetterPunchSet(canonArr,aliasArr,preferAlias=false){
+  const c=normalizePunchSet(canonArr),a=normalizePunchSet(aliasArr);
+  const cs=punchSetScore(c,false),as=punchSetScore(a,preferAlias);
+  if(as>cs)return a;
+  if(cs>as)return c;
+  if(a.length!==c.length)return a.length>c.length?a:c;
+  return preferAlias&&a.length?a:c;
+}
 
 async function repairDuplicateCloudStaff(){
   if(!cloudSession())return;
@@ -280,6 +315,7 @@ async function repairDuplicateCloudStaff(){
     let ar=sr.find(v=>v.name===alias&&v.active);
     if(!ar)continue;
     let cr=sr.find(v=>v.name===canon);
+    const preferAlias=Number(ar?.hourly_wage||0)>0 && Number(cr?.hourly_wage||0)===0;
     let payload={
       name:canon,active:true,
       sort_order:Number(cr?.sort_order ?? ar.sort_order ?? DEF.indexOf(canon)),
@@ -288,20 +324,20 @@ async function repairDuplicateCloudStaff(){
     };
     await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(payload)});
 
-    let rr=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(alias));
-    let aliasRows=await rr.json();
-    if(aliasRows.length){
-      let rc=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(canon));
-      let canonRows=await rc.json();
-      let have=new Set(canonRows.map(r=>[r.work_date,r.punch_type,String(r.punch_time||'').slice(0,8),r.position??''].join('|')));
-      let add=[];
-      for(let r of aliasRows){
-        let k=[r.work_date,r.punch_type,String(r.punch_time||'').slice(0,8),r.position??''].join('|');
-        if(!have.has(k)){add.push({staff_name:canon,work_date:r.work_date,punch_type:r.punch_type,punch_time:r.punch_time,position:r.position});have.add(k)}
+    let rr=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(alias)+'&order=work_date.asc,position.asc,id.asc');
+    let rc=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(canon)+'&order=work_date.asc,position.asc,id.asc');
+    let aliasRows=await rr.json(), canonRows=await rc.json();
+    const byDay=(rows)=>rows.reduce((o,r)=>((o[r.work_date]??=[]).push(r),o),{});
+    let ad=byDay(aliasRows),cd=byDay(canonRows);
+    for(const day of new Set([...Object.keys(ad),...Object.keys(cd)])){
+      let chosen=chooseBetterPunchSet(cd[day]||[],ad[day]||[],preferAlias);
+      await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(canon)+'&work_date=eq.'+encodeURIComponent(day),{method:'DELETE',headers:{'Prefer':'return=minimal'}});
+      if(chosen.length){
+        let rows=chosen.map((v,i)=>({staff_name:canon,work_date:day,punch_type:v[0],punch_time:v[1]+':00',position:i}));
+        await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(rows)});
       }
-      if(add.length)await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(add)});
-      await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(alias),{method:'DELETE',headers:{'Prefer':'return=minimal'}});
     }
+    await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(alias),{method:'DELETE',headers:{'Prefer':'return=minimal'}});
     await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(alias),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})});
   }
 
@@ -310,11 +346,14 @@ async function repairDuplicateCloudStaff(){
   localStorage.setItem(SK,JSON.stringify(a));
   let d=JSON.parse(localStorage.getItem(DK)||'{}');
   for(const [alias,canon] of Object.entries(DUPLICATE_STAFF_NAME_MAP)){
-    if(d[alias]){
-      d[canon]??={};
-      for(const [day,arr] of Object.entries(d[alias]||{})){if(!d[canon][day])d[canon][day]=arr}
-      delete d[alias];
+    if(!d[alias])continue;
+    d[canon]??={};
+    const w=wages();
+    const preferAlias=Number(w[alias]||0)>0 && Number(w[canon]||0)===0;
+    for(const [day,arr] of Object.entries(d[alias]||{})){
+      d[canon][day]=chooseBetterPunchSet(d[canon][day]||[],arr||[],preferAlias);
     }
+    delete d[alias];
   }
   localStorage.setItem(DK,JSON.stringify(d));
 }
