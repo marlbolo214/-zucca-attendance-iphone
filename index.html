@@ -171,6 +171,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
+// ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v40 staff rename + cloud history sync
 // ZUCCA Attendance v39 cloud pull sync fix
 
@@ -259,6 +260,62 @@ function unmarkStaffDeleted(n){let z=deletedStaff();z.delete(n);localStorage.set
 async function cloudReplaceDay(s,d,a){if(!cloudSession())return;await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(s)+'&work_date=eq.'+encodeURIComponent(d),{method:'DELETE',headers:{'Prefer':'return=minimal'}});if(a.length){let rows=a.map((v,i)=>({staff_name:s,work_date:d,punch_type:v[0],punch_time:v[1]+':00',position:i}));await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(rows)})}clearDirty(s,d)}
 async function cloudSyncStaff(){let local=staff(),w=wages(),tr=transports();for(let i=0;i<local.length;i++){let n=local[i];await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({name:n,active:true,sort_order:i,hourly_wage:Number(w[n]||0),transport_per_day:Number(tr[n]||0)})});unmarkStaffDeleted(n)}for(let n of deletedStaff()){await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(n),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})})}}
 async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&order=work_date.asc,position.asc,id.asc');return await r.json()}
+const DUPLICATE_STAFF_NAME_MAP={
+  '茅野しのぶ':'チノ',
+  '大森明日香':'アスカ',
+  '松沢日和':'ヒヨリ',
+  '小林千佑':'チヒロ',
+  '寺崎雄介':'ユウスケ',
+  '小栗碧':'アオイ',
+  '山本ゆい':'ユイ'
+};
+
+async function repairDuplicateCloudStaff(){
+  if(!cloudSession())return;
+  let sr=await fetchCloudStaff();
+  for(const [alias,canon] of Object.entries(DUPLICATE_STAFF_NAME_MAP)){
+    let ar=sr.find(v=>v.name===alias&&v.active);
+    if(!ar)continue;
+    let cr=sr.find(v=>v.name===canon);
+    let payload={
+      name:canon,active:true,
+      sort_order:Number(cr?.sort_order ?? ar.sort_order ?? DEF.indexOf(canon)),
+      hourly_wage:Number(cr?.hourly_wage || ar.hourly_wage || 0),
+      transport_per_day:Number(cr?.transport_per_day || ar.transport_per_day || 0)
+    };
+    await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(payload)});
+
+    let rr=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(alias));
+    let aliasRows=await rr.json();
+    if(aliasRows.length){
+      let rc=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&staff_name=eq.'+encodeURIComponent(canon));
+      let canonRows=await rc.json();
+      let have=new Set(canonRows.map(r=>[r.work_date,r.punch_type,String(r.punch_time||'').slice(0,8),r.position??''].join('|')));
+      let add=[];
+      for(let r of aliasRows){
+        let k=[r.work_date,r.punch_type,String(r.punch_time||'').slice(0,8),r.position??''].join('|');
+        if(!have.has(k)){add.push({staff_name:canon,work_date:r.work_date,punch_type:r.punch_type,punch_time:r.punch_time,position:r.position});have.add(k)}
+      }
+      if(add.length)await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(add)});
+      await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(alias),{method:'DELETE',headers:{'Prefer':'return=minimal'}});
+    }
+    await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(alias),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})});
+  }
+
+  let a=staff().map(n=>DUPLICATE_STAFF_NAME_MAP[n]||n);
+  a=[...new Set(a)];
+  localStorage.setItem(SK,JSON.stringify(a));
+  let d=JSON.parse(localStorage.getItem(DK)||'{}');
+  for(const [alias,canon] of Object.entries(DUPLICATE_STAFF_NAME_MAP)){
+    if(d[alias]){
+      d[canon]??={};
+      for(const [day,arr] of Object.entries(d[alias]||{})){if(!d[canon][day])d[canon][day]=arr}
+      delete d[alias];
+    }
+  }
+  localStorage.setItem(DK,JSON.stringify(d));
+}
+
 async function fetchCloudStaff(){let r=await authFetch('/rest/v1/staff_members?select=name,active,sort_order,hourly_wage,transport_per_day&order=sort_order.asc,name.asc');return await r.json()}
 function allLocalDays(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),out=[];for(let [s,days] of Object.entries(x))for(let [d,a] of Object.entries(days||{}))if(Array.isArray(a)&&a.length)out.push([s,d,a]);return out}
 async function syncCloud(showMsg=false){
@@ -270,6 +327,7 @@ async function syncCloud(showMsg=false){
   cloudBusy=true;
   try{
     cloudSetStatus('同期中…');
+    await repairDuplicateCloudStaff();
     let dirty=dirtySet();
 
     // 端末で変更した日を先にクラウドへ送る
