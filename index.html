@@ -133,6 +133,7 @@
 
 /* v45 password recovery */
 .pwOverlay{position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,.72);display:flex;align-items:center;justify-content:center;padding:20px}
+.pwOverlay.hide{display:none!important}
 .pwCard{width:min(520px,100%);background:#fff;border-radius:24px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.28)}
 .pwCard h2{margin:0 0 8px;font-size:26px}.pwCard p{color:#64748b;line-height:1.6;margin:0 0 16px}
 .pwCard input{width:100%;box-sizing:border-box;margin:7px 0;padding:15px 16px;border:1px solid #cbd5e1;border-radius:14px;font-size:18px}
@@ -190,7 +191,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v47 expired recovery link auto-close + session safety + v46/v45/v44
+// ZUCCA Attendance v48 recovery overlay hide fix + v47/v46/v45/v44
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
 // ZUCCA Attendance v42 duplicate-name cleanup 2
@@ -283,16 +284,14 @@ async function updateRecoveredPassword(){
     if(!r.ok)throw new Error(body||('HTTP '+r.status));
     if(msg){msg.classList.add('ok');msg.textContent='パスワードを変更しました ✓\nこの端末はそのままクラウド同期できます。'}
     Q('pwNew1').value='';Q('pwNew2').value='';
-    // Mark this recovery link as already used, then remove its tokens from the URL.
+    // Mark this recovery link as already used, remove tokens, and close the modal immediately.
     localStorage.setItem(RECOVERY_DONE_KEY,recoveryAccessToken||token);
     history.replaceState({},document.title,location.pathname+location.search);
     recoveryAccessToken='';
-    setTimeout(()=>{
-      const box=Q('pwRecovery');if(box){box.classList.add('hide');box.setAttribute('aria-hidden','true')}
-      document.body.style.overflow='';
-      cloudSetStatus('パスワード変更済み・クラウド接続中 ✓');
-      syncCloud(true);
-    },1400);
+    const box=Q('pwRecovery');if(box){box.classList.add('hide');box.setAttribute('aria-hidden','true')}
+    document.body.style.overflow='';
+    cloudSetStatus('パスワード変更済み・クラウド接続中 ✓');
+    syncCloud(true);
   }catch(err){
     console.error('password update error',err);
     if(msg){msg.classList.add('err');msg.textContent='変更できませんでした：'+cloudErrorText(err)+'\n新しい再設定メールからもう一度お試しください。'}
