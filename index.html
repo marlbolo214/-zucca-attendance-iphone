@@ -190,7 +190,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v45 password recovery + v44 rename persistence fix
+// ZUCCA Attendance v46 recovery modal reopen fix + v45 password recovery + v44 rename persistence fix
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
 // ZUCCA Attendance v42 duplicate-name cleanup 2
@@ -205,6 +205,7 @@ const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_p
 const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1';
 let cloudBusy=false;
 let recoveryAccessToken='';
+const RECOVERY_DONE_KEY='zucca_password_recovery_done_v1';
 function recoveryParams(){
   const hash=new URLSearchParams((location.hash||'').replace(/^#/,'') );
   const query=new URLSearchParams(location.search||'');
@@ -217,6 +218,12 @@ function handlePasswordRecovery(){
     const access=hash.get('access_token')||'';
     const refresh=hash.get('refresh_token')||'';
     if(type!=='recovery'||!access)return false;
+    // Safari/Gmail may reopen the same recovery URL after a successful reset.
+    // If this exact recovery token was already used, do not show the reset modal again.
+    if(localStorage.getItem(RECOVERY_DONE_KEY)===access){
+      history.replaceState({},document.title,location.pathname+location.search);
+      return false;
+    }
     recoveryAccessToken=access;
     // Recovery session is a valid authenticated session. Keep it so the app can continue syncing after reset.
     saveCloudSession({access_token:access,refresh_token:refresh,token_type:hash.get('token_type')||'bearer',expires_in:Number(hash.get('expires_in')||3600),expires_at:Math.floor(Date.now()/1000)+Number(hash.get('expires_in')||3600)});
@@ -244,7 +251,8 @@ async function updateRecoveredPassword(){
     if(!r.ok)throw new Error(body||('HTTP '+r.status));
     if(msg){msg.classList.add('ok');msg.textContent='パスワードを変更しました ✓\nこの端末はそのままクラウド同期できます。'}
     Q('pwNew1').value='';Q('pwNew2').value='';
-    // Remove recovery tokens from the address bar/history after successful use.
+    // Mark this recovery link as already used, then remove its tokens from the URL.
+    localStorage.setItem(RECOVERY_DONE_KEY,recoveryAccessToken||token);
     history.replaceState({},document.title,location.pathname+location.search);
     recoveryAccessToken='';
     setTimeout(()=>{
