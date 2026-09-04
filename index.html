@@ -190,7 +190,7 @@
 <div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
-// ZUCCA Attendance v46 recovery modal reopen fix + v45 password recovery + v44 rename persistence fix
+// ZUCCA Attendance v47 expired recovery link auto-close + session safety + v46/v45/v44
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
 // ZUCCA Attendance v42 duplicate-name cleanup 2
@@ -211,21 +211,53 @@ function recoveryParams(){
   const query=new URLSearchParams(location.search||'');
   return {hash,query};
 }
-function handlePasswordRecovery(){
+async function handlePasswordRecovery(){
   try{
     const {hash}=recoveryParams();
     const type=hash.get('type');
     const access=hash.get('access_token')||'';
     const refresh=hash.get('refresh_token')||'';
     if(type!=='recovery'||!access)return false;
-    // Safari/Gmail may reopen the same recovery URL after a successful reset.
-    // If this exact recovery token was already used, do not show the reset modal again.
-    if(localStorage.getItem(RECOVERY_DONE_KEY)===access){
+
+    const cleanRecoveryUrl=()=>{
       history.replaceState({},document.title,location.pathname+location.search);
+      const box=Q('pwRecovery');
+      if(box){box.classList.add('hide');box.setAttribute('aria-hidden','true')}
+      document.body.style.overflow='';
+    };
+
+    // すでにこのリンクで変更済みなら、再設定画面は出さない。
+    if(localStorage.getItem(RECOVERY_DONE_KEY)===access){
+      cleanRecoveryUrl();
       return false;
     }
+
+    // 再設定トークンが今も有効か、Supabase Authで先に確認する。
+    // 無効・使用済みトークンを既存のクラウドセッションへ上書きしない。
+    let vr;
+    try{
+      vr=await fetch(SUPABASE_URL+'/auth/v1/user',{
+        headers:{'apikey':SUPABASE_KEY,'Authorization':'Bearer '+access}
+      });
+    }catch(e){
+      console.warn('recovery token validation network error',e);
+      // 通信失敗だけなら再設定画面を表示して再試行可能にする。
+      vr=null;
+    }
+
+    if(vr && !vr.ok){
+      // 使用済み/期限切れリンク。もし旧v45/v46がこの無効トークンを
+      // クラウドセッションに保存していた場合だけ安全に解除する。
+      const cs=cloudSession();
+      if(cs?.access_token===access)saveCloudSession(null);
+      localStorage.setItem(RECOVERY_DONE_KEY,access);
+      cleanRecoveryUrl();
+      setTimeout(()=>cloudSetStatus('パスワード変更済み。必要なら管理者メニューから新しいパスワードでクラウド接続してください。',false),0);
+      return false;
+    }
+
     recoveryAccessToken=access;
-    // Recovery session is a valid authenticated session. Keep it so the app can continue syncing after reset.
+    // 有効確認できた再設定セッションだけ保存する。
     saveCloudSession({access_token:access,refresh_token:refresh,token_type:hash.get('token_type')||'bearer',expires_in:Number(hash.get('expires_in')||3600),expires_at:Math.floor(Date.now()/1000)+Number(hash.get('expires_in')||3600)});
     const box=Q('pwRecovery');
     if(box){box.classList.remove('hide');box.setAttribute('aria-hidden','false')}
@@ -811,8 +843,8 @@ async function renameStaff(oldn){
 function rl(){const box=Q('list');box.replaceChildren();staff().forEach(n=>{const row=document.createElement('div');row.className='sr';const sp=document.createElement('span');sp.textContent=n;const edit=document.createElement('button');edit.className='admin';edit.textContent='名前変更';edit.onclick=()=>renameStaff(n);const b=document.createElement('button');b.className='del';b.textContent='削除';b.onclick=()=>del(n);row.append(sp,edit,b);box.appendChild(row)})}
 function csv(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports(),r=range(),lines=['スタッフ,期間,出勤日数,時給,実働,休憩,残業,残業割増額,深夜,深夜割増額,交通費,支給額'];staff().forEach(s=>{let t=staffTotal(x,s),rate=Number(w[s]||0),p=payrollDetail(t,rate,Number(tr[s]||0));lines.push('"'+s.replace(/"/g,'""')+'","'+iso(r[0])+'～'+iso(r[1])+'",'+t[0]+','+rate+','+fmt(t[1])+','+fmt(t[2])+','+fmt(t[3])+','+Math.round(p.overtimePremium)+','+fmt(t[4])+','+Math.round(p.nightPremium)+','+Math.round(p.transport)+','+Math.round(p.total))});let blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZUCCA勤怠給与_'+iso(r[0])+'_'+iso(r[1])+'.csv';a.click();URL.revokeObjectURL(a.href)}
 function printReport(){Q('printAll').classList.remove('hide');window.print();setTimeout(()=>Q('printAll').classList.add('hide'),500)}
-function init(){
-  handlePasswordRecovery();
+async function init(){
+  await handlePasswordRecovery();
   const st=Q('staff');
   if(st){
     st.addEventListener('change',render);
