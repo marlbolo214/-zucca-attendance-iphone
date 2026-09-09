@@ -73,6 +73,8 @@
 
 .pTransport{background:#f0fdf4;color:#15803d}
 #transportRows .staffrow{display:grid;grid-template-columns:1fr minmax(130px,220px);align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid #e5e7eb}
+.transportField{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:12px}
+.transportField label{font-weight:700;white-space:nowrap}.transportField input{width:120px}.transportField .note{margin:0}
 #transportRows input{width:100%;box-sizing:border-box}
 
 @media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}.timeSelectWrap{display:grid;grid-template-columns:minmax(88px,1fr) auto minmax(88px,1fr) auto;gap:6px;align-items:center;flex:1}
@@ -138,8 +140,8 @@
 
 <div class="top"><h2>ZUCCA 勤怠</h2><div id="clock"></div></div><div class="w">
 <div class="c no-print"><b>スタッフ</b><select id="staff"><option value="">読み込み中...</option></select><p id="status"></p><p id="cloudStatus" class="note">クラウド：未接続（端末内保存で利用中）</p><div class="g"><button class="in" onclick="stamp('出勤')">出勤</button><button class="bs" onclick="stamp('休憩開始')">休憩開始</button><button class="be" onclick="stamp('休憩終了')">休憩終了</button><button class="out" onclick="stamp('退勤')">退勤</button></div><p class="note">出勤は15分単位で繰り上げ／休憩開始は切り下げ／休憩終了は繰り上げ／退勤は切り下げ。修正画面・保存・給与計算も同じ時刻で統一</p></div>
-<div class="c"><b>本日の勤務</b><div id="log"></div><p class="note" id="todaySpan">勤務時間：--</p><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
-<div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><p class="note">時間表示は小数表記です（15分＝0.25／30分＝0.50／45分＝0.75）。</p><div class="tw"><table><thead><tr><th>日付</th><th>勤務時間</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
+<div class="c"><b>本日の勤務</b><div id="log"></div><div class="transportField"><label for="todayTransport">交通費</label><input id="todayTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span><button onclick="saveTodayTransport()">保存</button></div><p class="note" id="todayTransportNote"></p><p class="note" id="todaySpan">勤務時間：--</p><div class="m"><div class="metric">実働<b id="work">--</b></div><div class="metric">休憩<b id="brk">--</b></div><div class="metric">残業（8時間超）<b id="ot">--</b></div><div class="metric">深夜（22時以降）<b id="night">--</b></div></div></div>
+<div class="c"><b>月間勤務（21日〜翌20日）</b><p id="period"></p><p class="note">時間表示は小数表記です（15分＝0.25／30分＝0.50／45分＝0.75）。</p><div class="tw"><table><thead><tr><th>日付</th><th>勤務時間</th><th>交通費</th><th>実働</th><th>休憩</th><th>残業</th><th>深夜</th></tr></thead><tbody id="monthly"></tbody><tfoot id="totals"></tfoot></table></div></div>
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
 <p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。30秒ごとに他端末の打刻・時給・交通費も自動取得します。ネットが切れても端末内に保存し、復帰後に再同期します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
@@ -152,9 +154,9 @@
 <div class="row actions"><button onclick="saveWages()">時給を保存</button></div>
 <p id="wageMsg" class="note"></p>
 <hr><b>交通費設定</b>
-<p class="note">スタッフごとに「1日あたりの交通費」を登録します。締め日集計では 出勤日数 × 1日交通費 を自動加算します。</p>
+<p class="note">スタッフごとに「通常交通費（1日）」を登録します。新しい勤怠にはこの金額を初期入力し、日ごとの勤怠に固定保存します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
+<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
   <div class="payLegend">
@@ -187,7 +189,7 @@
 
 const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
-const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1';
+const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1',DTK='zucca_daily_transport_v1';
 let cloudBusy=false;
 let recoveryAccessToken='';
 const RECOVERY_DONE_KEY='zucca_password_recovery_done_v1';
@@ -327,9 +329,9 @@ function clearDirty(s,d){let z=dirtySet();z.delete(s+'|'+d);localStorage.setItem
 function deletedStaff(){try{return new Set(JSON.parse(localStorage.getItem(DELETED)||'[]'))}catch(e){return new Set()}}
 function markStaffDeleted(n){let z=deletedStaff();z.add(n);localStorage.setItem(DELETED,JSON.stringify([...z]))}
 function unmarkStaffDeleted(n){let z=deletedStaff();z.delete(n);localStorage.setItem(DELETED,JSON.stringify([...z]))}
-async function cloudReplaceDay(s,d,a){if(!cloudSession())return;await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(s)+'&work_date=eq.'+encodeURIComponent(d),{method:'DELETE',headers:{'Prefer':'return=minimal'}});if(a.length){let rows=a.map((v,i)=>({staff_name:s,work_date:d,punch_type:v[0],punch_time:v[1]+':00',position:i}));await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(rows)})}clearDirty(s,d)}
+async function cloudReplaceDay(s,d,a){if(!cloudSession())return;await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(s)+'&work_date=eq.'+encodeURIComponent(d),{method:'DELETE',headers:{'Prefer':'return=minimal'}});if(a.length){let cost=dailyTransportValue(s,d),rows=a.map((v,i)=>({staff_name:s,work_date:d,punch_type:v[0],punch_time:v[1]+':00',position:i,transport_cost:cost}));await authFetch('/rest/v1/attendance',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(rows)})}clearDirty(s,d)}
 async function cloudSyncStaff(){let local=staff(),w=wages(),tr=transports();for(let i=0;i<local.length;i++){let n=local[i];await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({name:n,active:true,sort_order:i,hourly_wage:Number(w[n]||0),transport_per_day:Number(tr[n]||0)})});unmarkStaffDeleted(n)}for(let n of deletedStaff()){await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(n),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})})}}
-async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id&order=work_date.asc,position.asc,id.asc');return await r.json()}
+async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id,transport_cost&order=work_date.asc,position.asc,id.asc');return await r.json()}
 const DUPLICATE_STAFF_NAME_MAP={
   '茅野しのぶ':'チノ',
   '大森明日香':'アスカ',
@@ -409,18 +411,22 @@ async function syncCloud(showMsg=false){
     }
 
     // クラウドの打刻を端末へ反映
-    let x=JSON.parse(localStorage.getItem(DK)||'{}');
+    let x=JSON.parse(localStorage.getItem(DK)||'{}'),daily=dailyTransports();
     let cloudKeys=new Set();
     for(let r of rows){
       let sn=r.staff_name,d=r.work_date,t=String(r.punch_time||'').slice(0,5);
       x[sn]??={};
       if(!cloudKeys.has(sn+'|'+d)){
         x[sn][d]=[];
+        daily[sn]??={};
+        if(r.transport_cost===null||r.transport_cost===undefined)delete daily[sn][d];
+        else daily[sn][d]=normalizeTransport(r.transport_cost);
         cloudKeys.add(sn+'|'+d);
       }
       x[sn][d].push([r.punch_type,t]);
     }
     localStorage.setItem(DK,JSON.stringify(x));
+    localStorage.setItem(DTK,JSON.stringify(daily));
 
     // スタッフ・時給・交通費は通常同期ではクラウドを正として取得する。
     // 別端末の空欄データでクラウドを上書きしない。
@@ -485,6 +491,13 @@ function wages(){try{let w=JSON.parse(localStorage.getItem(WK)||'{}');return w&&
 function yen(n){return '¥'+Math.round(Number(n)||0).toLocaleString('ja-JP')}
 
 function transports(){try{return JSON.parse(localStorage.getItem(TK)||'{}')}catch(e){return {}}}
+function normalizeTransport(value){let n=Number(value);return Number.isFinite(n)?Math.max(0,Math.round(n)):0}
+function dailyTransports(){try{let x=JSON.parse(localStorage.getItem(DTK)||'{}');return x&&typeof x==='object'?x:{}}catch(e){return {}}}
+function hasDailyTransport(name,day){let x=dailyTransports();return !!(x[name]&&Object.prototype.hasOwnProperty.call(x[name],day))}
+function dailyTransportValue(name,day){let x=dailyTransports();return x[name]&&Object.prototype.hasOwnProperty.call(x[name],day)?normalizeTransport(x[name][day]):null}
+function setDailyTransport(name,day,value){let x=dailyTransports();x[name]??={};if(value===null||value==='')delete x[name][day];else x[name][day]=normalizeTransport(value);localStorage.setItem(DTK,JSON.stringify(x))}
+function initialDailyTransport(name){return normalizeTransport(transports()[name]??0)}
+function transportForPayroll(name,day){let value=dailyTransportValue(name,day);return value===null?initialDailyTransport(name):value}
 function saveTransport(name,val){
   let x=transports(),n=Math.max(0,Number(val||0));
   if(n>0)x[name]=n;else delete x[name];
@@ -518,7 +531,7 @@ function payrollDetail(t,wage,transportPerDay=0){
   let base=work/60*wage;
   let overtimePremium=ot/60*wage*.25;
   let nightPremium=night/60*wage*.25;
-  let transport=(t[0]||0)*transportPerDay;
+  let transport=t.length>5?Number(t[5]||0):(t[0]||0)*transportPerDay;
   return {base,overtimePremium,nightPremium,transport,transportPerDay,total:base+overtimePremium+nightPremium+transport};
 }
 function payrollFromTotals(t,wage,transportPerDay=0){return payrollDetail(t,wage,transportPerDay).total}
@@ -569,7 +582,7 @@ function punchTime(kind){
 
   return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')
 }
-function stamp(k){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,day=iso(new Date());if(!s)return;x[s]??={};x[s][day]??=[];x[s][day].push([k,punchTime(k)]);localStorage.setItem(DK,JSON.stringify(x));render();allSummary();cloudAfterDayChange(s,day,x[s][day])}
+function stamp(k){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,day=iso(new Date());if(!s)return;x[s]??={};x[s][day]??=[];if(!hasDailyTransport(s,day)){let input=Q('todayTransport');setDailyTransport(s,day,input&&input.value!==''?input.value:initialDailyTransport(s))}x[s][day].push([k,punchTime(k)]);localStorage.setItem(DK,JSON.stringify(x));render();allSummary();cloudAfterDayChange(s,day,x[s][day])}
 function mins(t){let a=t.split(':').map(Number);return a[0]*60+a[1]}
 function fmt(n){
   if(n==null)return'--';
@@ -640,9 +653,11 @@ function calc(a){
   return[work,b,overtime,night];
 }
 function range(){let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]}
-function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=a.length?'最後：'+a[a.length-1][0]:'未打刻';if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
-function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0];Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="6">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>'}
-function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0;while(d<=en){let a=x[s]?.[iso(d)]||[];if(a.some(v=>v[0]==='出勤'))days++;let c=calc(a);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}return [days,...tot]}
+function renderTodayTransport(s,d,a){let input=Q('todayTransport'),note=Q('todayTransportNote');if(!input)return;let saved=dailyTransportValue(s,d);input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です（既存勤怠）':saved===null?'通常交通費を初期表示しています。最初の打刻時に固定保存します。':'この日の勤怠に保存済みです。'}
+function saveTodayTransport(){let s=Q('staff').value,d=iso(new Date()),input=Q('todayTransport');if(!s||!input||input.value==='')return;setDailyTransport(s,d,input.value);let x=JSON.parse(localStorage.getItem(DK)||'{}'),a=x[s]?.[d]||[];render();allSummary();if(a.length)cloudAfterDayChange(s,d,a)}
+function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=a.length?'最後：'+a[a.length-1][0]:'未打刻';renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
+function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k);if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="7">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>'}
+function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0;while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}return [days,...tot,transportTotal]}
 
 function renderTransportRows(){
   let box=Q('transportRows'); if(!box)return;
@@ -682,7 +697,7 @@ function allSummary(){
           '<div class="premiumItem pBase"><small>基本分（実働×時給）</small><b>'+yen(p.base)+'</b></div>'+
           '<div class="premiumItem pOt"><small>残業割増分（+25%）</small><b>'+yen(p.overtimePremium)+'</b></div>'+
           '<div class="premiumItem pNight"><small>深夜割増分（+25%）</small><b>'+yen(p.nightPremium)+'</b></div>'+
-          '<div class="premiumItem pTransport"><small>交通費（'+t[0]+'日 × '+yen(p.transportPerDay)+'）</small><b>'+yen(p.transport)+'</b></div>'+
+          '<div class="premiumItem pTransport"><small>日別交通費 合計</small><b>'+yen(p.transport)+'</b></div>'+
         '</div>'+
         '<div class="payBreak">計算式：基本分 '+yen(p.base)+' ＋ 残業割増 '+yen(p.overtimePremium)+' ＋ 深夜割増 '+yen(p.nightPremium)+' ＋ 交通費 '+yen(p.transport)+' ＝ <b>支給額（交通費込み） '+yen(p.total)+'</b></div>'+
       '</div>'
@@ -703,7 +718,7 @@ function allSummary(){
 }
 function escAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 function defaultEditDate(){if(Q('editDate')&&!Q('editDate').value)Q('editDate').value=iso(new Date())}
-function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('editStaff').value,d=Q('editDate').value,a=(x[s]?.[d]||[]).map(v=>[v[0],v[1]]);window._zuccaEdit=a;renderEditRows();Q('editMsg').textContent=a.length?'打刻を読み込みました':'この日の打刻はありません。必要なら「打刻を追加」できます。'}
+function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('editStaff').value,d=Q('editDate').value,a=(x[s]?.[d]||[]).map(v=>[v[0],v[1]]),saved=dailyTransportValue(s,d);window._zuccaEdit=a;let input=Q('editTransport');if(input)input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;let note=Q('editTransportNote');if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です。空欄のままなら未設定を維持します。':saved===null?'通常交通費を初期表示しています。':'保存済みの日別交通費です。';renderEditRows();Q('editMsg').textContent=a.length?'打刻を読み込みました':'この日の打刻はありません。必要なら「打刻を追加」できます。'}
 
 function setEditHour(i,h){
   let cur=(window._zuccaEdit[i]&&window._zuccaEdit[i][1])||'09:00';
@@ -750,7 +765,7 @@ function renderEditRows(){
 function addEditRow(){window._zuccaEdit=window._zuccaEdit||[];window._zuccaEdit.push(['出勤','09:00']);renderEditRows()}
 function deleteEditRow(i){if(!confirm('この打刻を削除しますか？'))return;window._zuccaEdit.splice(i,1);renderEditRows()}
 function saveEdits(){
-  defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);window._zuccaEdit=a;let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
+  defaultEditDate();let s=Q('editStaff').value,d=Q('editDate').value;if(!s||!d)return;let a=(window._zuccaEdit||[]).filter(v=>v[0]&&v[1]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);window._zuccaEdit=a;let input=Q('editTransport');setDailyTransport(s,d,a.length&&input&&input.value!==''?input.value:null);let x=JSON.parse(localStorage.getItem(DK)||'{}');x[s]??={};if(a.length)x[s][d]=a;else if(x[s])delete x[s][d];localStorage.setItem(DK,JSON.stringify(x));Q('editMsg').textContent='保存しました。実働・残業・深夜・月間合計を再計算しました。';render();allSummary();cloudAfterDayChange(s,d,a)}
 function login(){if(Q('pin').value==='1234'){Q('pb').classList.add('hide');Q('ad').classList.remove('hide');defaultEditDate();rs();rl();renderWages();allSummary()}else alert('PINが違います')}
 function add(){let n=Q('nn').value.trim(),a=staff();if(!n||a.includes(n))return;a.push(n);localStorage.setItem(SK,JSON.stringify(a));unmarkStaffDeleted(n);Q('nn').value='';rs();cloudAddStaff(n)} function del(n){if(confirm(n+'を削除しますか？')){localStorage.setItem(SK,JSON.stringify(staff().filter(x=>x!==n)));rs();cloudDeleteStaff(n)}}
 async function renameStaff(oldn){
@@ -797,6 +812,7 @@ async function renameStaff(oldn){
     }
     if(Object.prototype.hasOwnProperty.call(w,oldn)){w[newn]=w[oldn];delete w[oldn];localStorage.setItem(WK,JSON.stringify(w))}
     if(Object.prototype.hasOwnProperty.call(tr,oldn)){tr[newn]=tr[oldn];delete tr[oldn];localStorage.setItem(TK,JSON.stringify(tr))}
+    let dt=dailyTransports();if(Object.prototype.hasOwnProperty.call(dt,oldn)){dt[newn]=dt[oldn];delete dt[oldn];localStorage.setItem(DTK,JSON.stringify(dt))}
     unmarkStaffDeleted(newn);markStaffDeleted(oldn);
 
     rs();
