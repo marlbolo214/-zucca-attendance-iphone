@@ -604,6 +604,9 @@ function workSpan(a){
 function roundPunchTime(kind,time){
   if(!time)return time;
   let [h,m]=time.split(':').map(Number);
+  if(!Number.isInteger(h)||!Number.isInteger(m)||h<0||h>24||m<0||m>59)return time;
+  // 24:00 は翌日 00:00 ではなく、この勤務日の終端（1440分）として保持する。
+  if(h===24)return '24:00';
   if(kind==='出勤' || kind==='休憩終了'){
     m=Math.ceil(m/15)*15;
   }else if(kind==='退勤' || kind==='休憩開始'){
@@ -639,7 +642,9 @@ function calc(a){
   if(!ci||!co)return[null,b,null,null];
 
   let st=mins(ci[1]),en=mins(co[1]);
-  if(en<st)en+=1440;
+  // このアプリの勤務日は 24:00 で終了する。逆転・同時刻を日跨ぎ勤務と
+  // 推測して24時間加算すると異常集計になるため、安全にゼロとして扱う。
+  if(st<0||st>1440||en<0||en>1440||st>=en)return[0,0,0,0];
 
   let work=Math.max(0,en-st-b);
   work=Math.floor(work/15)*15;
@@ -647,15 +652,21 @@ function calc(a){
   let overtime=Math.max(0,work-480);
   overtime=Math.floor(overtime/15)*15;
 
-  let night=Math.max(0,en-Math.max(st,1320)-nb);
+  let night=Math.max(0,Math.min(en,1440)-Math.max(st,1320)-nb);
   night=Math.floor(night/15)*15;
+  night=Math.min(night,120);
 
   return[work,b,overtime,night];
 }
 function range(){let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]}
 function renderTodayTransport(s,d,a){let input=Q('todayTransport'),note=Q('todayTransportNote');if(!input)return;let saved=dailyTransportValue(s,d);input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です（既存勤怠）':saved===null?'通常交通費を初期表示しています。最初の打刻時に固定保存します。':'この日の勤怠に保存済みです。'}
 function saveTodayTransport(){let s=Q('staff').value,d=iso(new Date()),input=Q('todayTransport');if(!s||!input||input.value==='')return;setDailyTransport(s,d,input.value);let x=JSON.parse(localStorage.getItem(DK)||'{}'),a=x[s]?.[d]||[];render();allSummary();if(a.length)cloudAfterDayChange(s,d,a)}
-function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=a.length?'最後：'+a[a.length-1][0]:'未打刻';renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
+function hasInvalidWorkRange(a){
+  let aa=(a||[]).map(v=>[v[0],roundPunchTime(v[0],v[1])]);
+  let ci=aa.find(v=>v[0]==='出勤'),co=[...aa].reverse().find(v=>v[0]==='退勤');
+  return !!(ci&&co&&mins(ci[1])>=mins(co[1]));
+}
+function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=hasInvalidWorkRange(a)?'出勤・退勤時刻を確認してください':(a.length?'最後：'+a[a.length-1][0]:'未打刻');renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
 function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k);if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="7">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'</tr>'}
 function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0;while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}return [days,...tot,transportTotal]}
 
@@ -723,17 +734,17 @@ function loadEdit(){defaultEditDate();let x=JSON.parse(localStorage.getItem(DK)|
 function setEditHour(i,h){
   let cur=(window._zuccaEdit[i]&&window._zuccaEdit[i][1])||'09:00';
   let mm=cur.split(':')[1]||'00';
-  window._zuccaEdit[i][1]=h+':'+mm;
+  window._zuccaEdit[i][1]=h+':'+(h==='24'?'00':mm);
 }
 function setEditMinute(i,m){
   let cur=(window._zuccaEdit[i]&&window._zuccaEdit[i][1])||'09:00';
   let hh=cur.split(':')[0]||'09';
-  window._zuccaEdit[i][1]=hh+':'+m;
+  window._zuccaEdit[i][1]=hh+':'+(hh==='24'?'00':m);
 }
 
 function renderEditRows(){
   let a=window._zuccaEdit||[];
-  const hours=Array.from({length:24},(_,h)=>String(h).padStart(2,'0'));
+  const hours=Array.from({length:25},(_,h)=>String(h).padStart(2,'0'));
   const mins15=['00','15','30','45'];
 
   Q('editRows').innerHTML=a.map((v,i)=>{
@@ -743,7 +754,7 @@ function renderEditRows(){
     window._zuccaEdit[i][1]=normalized;
 
     let hourOptions=hours.map(h=>'<option value="'+h+'"'+(h===hh?' selected':'')+'>'+h+'</option>').join('');
-    let minOptions=mins15.map(m=>'<option value="'+m+'"'+(m===mm?' selected':'')+'>'+m+'</option>').join('');
+    let minOptions=(hh==='24'?['00']:mins15).map(m=>'<option value="'+m+'"'+(m===mm?' selected':'')+'>'+m+'</option>').join('');
 
     return '<div class="editRow">'+
       '<select class="punchType" onchange="_zuccaEdit['+i+'][0]=this.value;_zuccaEdit['+i+'][1]=roundPunchTime(this.value,_zuccaEdit['+i+'][1]);renderEditRows()">'+

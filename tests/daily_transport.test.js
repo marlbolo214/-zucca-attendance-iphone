@@ -49,6 +49,8 @@ run('setDailyTransport("テスト", "2026-09-13", initialDailyTransport("テス�
 localStorage.setItem('zucca_transport_v1', JSON.stringify({ テスト: 650 }));
 assert.equal(run('dailyTransportValue("テスト", "2026-09-13")'), 500);
 assert.equal(run('initialDailyTransport("テスト")'), 650);
+run('setDailyTransport("テスト", "2026-09-14", initialDailyTransport("テスト"))');
+assert.equal(run('dailyTransportValue("テスト", "2026-09-14")'), 650);
 
 // 6: 日別交通費のない既存勤怠も計算できる（互換時は通常交通費を表示集計に使用）。
 assert.equal(run('transportForPayroll("テスト", "2026-09-01")'), 650);
