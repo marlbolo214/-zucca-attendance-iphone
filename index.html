@@ -8,6 +8,7 @@
 .summaryCards{display:none}
 .payBreak{font-size:12px;color:#4b5563;line-height:1.55;margin-top:4px}
 .payBreak b{color:#111827}
+.deviceCounts{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.deviceCount{background:#eef2ff;color:#3730a3;border-radius:999px;padding:7px 11px;font-weight:800;font-size:13px}.deviceRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #e5e7eb}.deviceMeta{font-size:12px;color:#6b7280;margin-top:3px}
 @media(max-width:640px){
   .closingTable{display:none}
   .summaryCards{display:grid;gap:12px}
@@ -145,9 +146,11 @@
 <div class="c no-print"><b>管理者メニュー</b><div id="pb" class="row"><input id="pin" type="password" placeholder="管理者PIN" style="flex:1"><button class="admin" onclick="login()">開く</button></div><div id="ad" class="hide"><div class="row"><input id="nn" placeholder="新しいスタッフ名" style="flex:1"><button class="admin" onclick="add()">追加</button></div><div id="list"></div><hr><b>クラウド保存</b>
 <p class="note">最初の1回だけ管理者が接続すると、この端末は以後自動で同期します。30秒ごとに他端末の打刻・時給・交通費も自動取得します。ネットが切れても端末内に保存し、復帰後に再同期します。</p>
 <div class="row"><input id="cloudEmail" type="email" placeholder="Supabase Authのメール" style="flex:1"><input id="cloudPassword" type="password" placeholder="パスワード" style="flex:1"></div>
+<div class="row" style="margin-top:10px"><select id="cloudDeviceType" aria-label="端末種別" style="flex:1"><option value="punch">打刻専用端末</option><option value="admin">管理者用端末</option></select><input id="cloudDeviceName" placeholder="端末名（例：受付iPad）" maxlength="60" style="flex:1"></div>
 <div class="row actions"><button onclick="cloudLogin()">クラウド接続</button><button onclick="cloudTest()">接続テスト</button><button onclick="syncCloud(true)">今すぐ同期</button><button onclick="cloudLogout()">切断</button></div>
 <div id="cloudDiag" style="margin-top:10px;padding:12px;border:1px solid #d1d5db;border-radius:12px;background:#f8fafc;white-space:pre-wrap;font-size:13px;line-height:1.55">クラウド診断 v33：待機中</div>
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
+<hr><b>端末管理</b><div id="deviceCounts" class="deviceCounts"><span class="deviceCount">打刻専用 0/1台</span><span class="deviceCount">管理者用 0/2台</span></div><p class="note">Supabaseに登録された端末だけが同期できます。解除した枠は別の端末で再利用できます。</p><div id="deviceList"><p class="note">クラウド接続後に表示します。</p></div><div class="row actions"><button onclick="loadDevices(true)">端末一覧を更新</button></div><p id="deviceMsg" class="note"></p>
 <hr><b>時給設定</b>
 <p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
 <div id="wageList"></div>
@@ -189,8 +192,9 @@
 
 const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];const Q=x=>document.getElementById(x),SK='zucca_staff_v2',DK='zucca',DEF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウスケ", "アオイ", "ユイ", "ミユ", "ナナ", "リサ", "ミライ", "シャナ", "マホ", "サチコ", "ウスイ", "リュウエイ", "マサハル", "ケイコ", "サツキ", "ショウタ", "シェフ", "オギ"];
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
-const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1',DTK='zucca_daily_transport_v1';
+const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1',DTK='zucca_daily_transport_v1',DEVICE_ID_KEY='zucca_device_id_v1',DEVICE_TYPE_KEY='zucca_device_type_v1';
 let cloudBusy=false;
+let deviceVerified=false;
 let recoveryAccessToken='';
 const RECOVERY_DONE_KEY='zucca_password_recovery_done_v1';
 function recoveryParams(){
@@ -261,7 +265,46 @@ function cloudSetStatus(msg,ok=true){
   let dg=Q('cloudDiag');if(dg){dg.textContent='クラウド診断 v33\n'+text;dg.style.borderColor=ok?'#86efac':'#fca5a5';dg.style.background=ok?'#f0fdf4':'#fef2f2';}
 }
 function cloudSession(){try{return JSON.parse(localStorage.getItem(CK)||'null')}catch(e){return null}}
-function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else localStorage.removeItem(CK)}
+function saveCloudSession(s){if(s)localStorage.setItem(CK,JSON.stringify(s));else{localStorage.removeItem(CK);deviceVerified=false}}
+function deviceId(){
+  let id=localStorage.getItem(DEVICE_ID_KEY);
+  if(!id){id=(globalThis.crypto?.randomUUID?.()||('zucca-'+Date.now()+'-'+Math.random().toString(36).slice(2)));localStorage.setItem(DEVICE_ID_KEY,id)}
+  return id;
+}
+function deviceTypeLabel(type){return type==='punch'?'打刻専用':'管理者用'}
+function defaultDeviceName(){return (globalThis.navigator?.userAgentData?.platform||globalThis.navigator?.platform||'ZUCCA端末')+' '+deviceId().slice(-6)}
+async function rpc(name,body){let r=await authFetch('/rest/v1/rpc/'+name,{method:'POST',body:JSON.stringify(body||{})});let text=await r.text();return text?JSON.parse(text):null}
+async function registerCurrentDevice(type,name){
+  let result=await rpc('register_device',{p_device_id:deviceId(),p_device_type:type,p_device_name:name||defaultDeviceName()});
+  localStorage.setItem(DEVICE_TYPE_KEY,type);deviceVerified=true;return result;
+}
+async function verifyCurrentDevice(){
+  let type=localStorage.getItem(DEVICE_TYPE_KEY);
+  if(!type)throw new Error('この端末の種別が未登録です。管理者メニューから端末種別を選び、クラウド接続してください。');
+  let rows=await fetchDevices();
+  renderDevices(rows);
+  if(!rows.some(v=>v.device_id===deviceId()&&v.device_type===type)){
+    deviceVerified=false;
+    throw new Error('この端末はSupabaseの端末一覧に登録されていません。管理者メニューから再登録してください。');
+  }
+  deviceVerified=true;return true;
+}
+async function fetchDevices(){let r=await authFetch('/rest/v1/device_registrations?select=id,device_id,device_name,device_type,created_at,last_seen_at&order=created_at.asc');return await r.json()}
+function renderDevices(rows){
+  rows=Array.isArray(rows)?rows:[];let punch=rows.filter(v=>v.device_type==='punch').length,admin=rows.filter(v=>v.device_type==='admin').length;
+  let counts=Q('deviceCounts');if(counts)counts.innerHTML='<span class="deviceCount">打刻専用 '+punch+'/1台</span><span class="deviceCount">管理者用 '+admin+'/2台</span>';
+  let box=Q('deviceList');if(!box)return;box.replaceChildren();
+  if(!rows.length){let p=document.createElement('p');p.className='note';p.textContent='登録済み端末はありません。';box.appendChild(p);return}
+  rows.forEach(v=>{let row=document.createElement('div');row.className='deviceRow';let info=document.createElement('div');let title=document.createElement('b');title.textContent=(v.device_name||'名称未設定')+(v.device_id===deviceId()?'（この端末）':'');let meta=document.createElement('div');meta.className='deviceMeta';meta.textContent=deviceTypeLabel(v.device_type)+' ／ 登録 '+new Date(v.created_at).toLocaleString('ja-JP');info.append(title,meta);let btn=document.createElement('button');btn.className='del';btn.textContent='登録解除';btn.onclick=()=>unregisterDevice(v.device_id,v.device_name);row.append(info,btn);box.appendChild(row)})
+}
+async function loadDevices(showMsg=false){
+  if(!cloudSession()){if(showMsg)Q('deviceMsg').textContent='クラウド未接続です。';return []}
+  try{let rows=await fetchDevices();renderDevices(rows);if(showMsg)Q('deviceMsg').textContent='端末一覧を更新しました。';return rows}catch(e){if(showMsg)Q('deviceMsg').textContent='端末一覧を取得できません：'+cloudErrorText(e);throw e}
+}
+async function unregisterDevice(id,name){
+  if(!confirm((name||'この端末')+'の登録を解除しますか？'))return;
+  try{await rpc('unregister_device',{p_device_id:id});if(id===deviceId()){localStorage.removeItem(DEVICE_TYPE_KEY);deviceVerified=false}await loadDevices();Q('deviceMsg').textContent='端末登録を解除しました。空いた枠は再利用できます。';if(id===deviceId())cloudSetStatus('この端末の登録を解除しました。再同期には端末登録が必要です。',false)}catch(e){Q('deviceMsg').textContent='登録解除に失敗しました：'+cloudErrorText(e)}
+}
 async function authFetch(path,opt={}){let s=cloudSession();if(!s?.access_token)throw new Error('クラウド未接続');let h=Object.assign({'apikey':SUPABASE_KEY,'Authorization':'Bearer '+s.access_token,'Content-Type':'application/json'},opt.headers||{});let r=await fetch(SUPABASE_URL+path,Object.assign({},opt,{headers:h}));if(r.status===401&&s.refresh_token){let rr=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});if(rr.ok){let ns=await rr.json();saveCloudSession(ns);h.Authorization='Bearer '+ns.access_token;r=await fetch(SUPABASE_URL+path,Object.assign({},opt,{headers:h}))}}if(!r.ok){let t=await r.text();throw new Error(t||('HTTP '+r.status))}return r}
 function cloudErrorText(err){
   let raw=String(err?.message||err||'不明なエラー');
@@ -275,6 +318,8 @@ function cloudErrorText(err){
   if(low.includes('email not confirmed')) return 'メール認証が完了していません。\nSupabase応答: '+msg;
   if(low.includes('user not found')) return 'このメールアドレスのユーザーが見つかりません。\nSupabase応答: '+msg;
   if(low.includes('failed to fetch')||low.includes('network')) return 'Supabaseへ通信できません。\nSupabase応答: '+msg;
+  if(low.includes('device_limit_punch')) return '打刻専用端末は上限（1台）に達しています。端末管理で不要な端末を解除してください。';
+  if(low.includes('device_limit_admin')) return '管理者用端末は上限（2台）に達しています。端末管理で不要な端末を解除してください。';
   return msg;
 }
 async function cloudTest(){
@@ -308,21 +353,27 @@ async function cloudLogin(){
     if(!r.ok)throw new Error('HTTP '+r.status+' '+body);
     let session=JSON.parse(body);
     if(!session?.access_token)throw new Error('認証応答にaccess_tokenがありません: '+body);
+    deviceVerified=false;
     saveCloudSession(session);
+    let type=Q('cloudDeviceType')?.value||'punch',name=Q('cloudDeviceName')?.value.trim();
+    cloudSetStatus('認証成功 ✓\n端末を登録しています…');
+    await registerCurrentDevice(type,name);
     Q('cloudPassword').value='';
-    cloudSetStatus('認証成功 ✓\n勤怠データを同期しています…');
+    cloudSetStatus('端末登録成功 ✓\n勤怠データを同期しています…');
     await syncCloud(true);
+    await loadDevices();
     cloudSetStatus('認証・同期ともに成功しました ✓');
     alert('クラウド接続・同期に成功しました');
   }catch(err){
     console.error('Cloud login error:',err);
     let msg='接続失敗：'+cloudErrorText(err);
+    if(!deviceVerified)saveCloudSession(null);
     cloudSetStatus(msg,false);
     alert(msg);
   }
 }
 
-function cloudLogout(){saveCloudSession(null);cloudSetStatus('未接続（端末内保存で利用中）');}
+function cloudLogout(){saveCloudSession(null);renderDevices([]);cloudSetStatus('未接続（端末内保存で利用中）');}
 function dirtySet(){try{return new Set(JSON.parse(localStorage.getItem(DIRTY)||'[]'))}catch(e){return new Set()}}
 function markDirty(s,d){let z=dirtySet();z.add(s+'|'+d);localStorage.setItem(DIRTY,JSON.stringify([...z]))}
 function clearDirty(s,d){let z=dirtySet();z.delete(s+'|'+d);localStorage.setItem(DIRTY,JSON.stringify([...z]))}
@@ -394,6 +445,7 @@ async function syncCloud(showMsg=false){
   cloudBusy=true;
   try{
     cloudSetStatus('同期中…');
+    await verifyCurrentDevice();
     await repairDuplicateCloudStaff();
     let dirty=dirtySet();
 
