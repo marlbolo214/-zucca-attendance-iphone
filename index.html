@@ -159,7 +159,7 @@
 <hr><b>交通費設定</b>
 <p class="note">スタッフごとに「通常交通費（1日）」を登録します。新しい勤怠にはこの金額を初期入力し、日ごとの勤怠に固定保存します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
+<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b><div style="margin:10px 0;padding:12px;background:#f8fafc;border-radius:12px"><b>集計・印刷期間</b><div class="row" style="margin-top:8px"><input id="reportStart" type="date" style="flex:1"><span style="align-self:center">〜</span><input id="reportEnd" type="date" style="flex:1"><button type="button" class="admin" onclick="applyCustomReportPeriod()">この期間を表示</button></div><div class="row actions"><button type="button" onclick="setReportPeriodOffset(-1)">前の締め期間</button><button type="button" onclick="setReportPeriodOffset(0)">今の締め期間</button></div><p class="note">表示期間：<b id="reportPeriodChoice"></b>　※表示・集計・PDF対象だけを切り替えます。保存済み勤怠は変更しません。</p></div>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
   <div class="payLegend">
@@ -177,9 +177,9 @@
     <div class="overviewBox"><small>支給額（交通費込み） 合計</small><b id="sumTotal">¥0</b></div>
   </div>
 </div>
-<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
+<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="openAttendancePdfPicker()">勤怠記録PDF</button><button onclick="printReport()">従来PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
-</div><script>
+</div><div id="attendancePdfDialog" class="hide no-print" style="position:fixed;inset:0;z-index:9999;background:rgba(17,24,39,.45);padding:16px;overflow:auto"><div style="background:white;border-radius:18px;max-width:560px;margin:20px auto;padding:18px;max-height:calc(100dvh - 40px);display:flex;flex-direction:column"><h2 style="margin-top:0">勤怠記録PDF</h2><p class="note">PDFにするスタッフを選択してください。勤怠データは変更しません。</p><div class="row actions"><button type="button" onclick="setAttendancePdfAll(true)">全員選択</button><button type="button" onclick="setAttendancePdfAll(false)">全解除</button></div><div id="attendancePdfStaffList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;overflow:auto;min-height:0;padding-bottom:8px;-webkit-overflow-scrolling:touch"></div><div class="row actions" style="position:sticky;bottom:0;z-index:20;background:white;padding:12px 0 calc(12px + env(safe-area-inset-bottom));margin-top:4px;border-top:1px solid #e5e7eb;flex-wrap:nowrap"><button id="attendancePdfOpenBtn" type="button" style="flex:1;min-height:52px;touch-action:manipulation;position:relative;z-index:21" onclick="printSelectedAttendanceFourUp()">PDF/印刷を開く</button><button type="button" style="min-height:52px;touch-action:manipulation;position:relative;z-index:21" onclick="closeAttendancePdfPicker()">閉じる</button></div></div></div><script>
 // ZUCCA Attendance v47 expired recovery link auto-close + session safety + v46/v45/v44
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
@@ -710,7 +710,28 @@ function calc(a){
 
   return[work,b,overtime,night];
 }
-function range(){let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]}
+let reportPeriodOffset=0,customReportRange=null;
+function defaultClosingRange(offset=0){
+  let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);
+  s=new Date(s.getFullYear(),s.getMonth()+Number(offset||0),21);
+  return [s,new Date(s.getFullYear(),s.getMonth()+1,20)]
+}
+function range(){return customReportRange||defaultClosingRange(reportPeriodOffset)}
+function syncReportPeriodInputs(){
+  const [st,en]=range(),a=Q('reportStart'),b=Q('reportEnd'),el=Q('reportPeriodChoice');
+  if(a)a.value=iso(st);if(b)b.value=iso(en);if(el)el.textContent=iso(st)+' ～ '+iso(en);
+}
+function refreshReportPeriod(){render();allSummary();syncReportPeriodInputs()}
+function setReportPeriodOffset(v){reportPeriodOffset=Number(v)||0;customReportRange=null;refreshReportPeriod()}
+function applyCustomReportPeriod(){
+  const a=Q('reportStart')?.value,b=Q('reportEnd')?.value;
+  if(!a||!b){alert('開始日と終了日を選んでください。');return}
+  const st=new Date(a+'T00:00:00'),en=new Date(b+'T00:00:00');
+  if(Number.isNaN(st.getTime())||Number.isNaN(en.getTime())||st>en){alert('期間を確認してください。');return}
+  const days=Math.round((en-st)/86400000)+1;
+  if(days>62&&!confirm(days+'日間を表示します。よろしいですか？'))return;
+  customReportRange=[st,en];refreshReportPeriod();
+}
 function renderTodayTransport(s,d,a){let input=Q('todayTransport'),note=Q('todayTransportNote');if(!input)return;let saved=dailyTransportValue(s,d);input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です（既存勤怠）':saved===null?'通常交通費を初期表示しています。最初の打刻時に固定保存します。':'この日の勤怠に保存済みです。'}
 function saveTodayTransport(){let s=Q('staff').value,d=iso(new Date()),input=Q('todayTransport');if(!s||!input||input.value==='')return;setDailyTransport(s,d,input.value);let x=JSON.parse(localStorage.getItem(DK)||'{}'),a=x[s]?.[d]||[];render();allSummary();if(a.length)cloudAfterDayChange(s,d,a)}
 function hasInvalidWorkRange(a){
@@ -905,6 +926,7 @@ async function init(){
   },1000);
 
   rs();
+  setReportPeriodOffset(0);
 
   if(cloudSession())syncCloud();
 
@@ -925,4 +947,53 @@ async function init(){
   },30000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+
+function attendancePdfRange(){return range()}
+function openAttendancePdfPicker(){
+  const list=Q('attendancePdfStaffList'),dg=Q('attendancePdfDialog');if(!list||!dg)return;
+  list.replaceChildren();staff().forEach(n=>{const lab=document.createElement('label');lab.style.cssText='display:flex;gap:8px;align-items:center;border:1px solid #e5e7eb;border-radius:10px;padding:10px';const cb=document.createElement('input');cb.type='checkbox';cb.className='attendancePdfStaff';cb.value=n;cb.checked=true;cb.style.width='auto';const sp=document.createElement('span');sp.textContent=n;lab.append(cb,sp);list.appendChild(lab)});dg.classList.remove('hide');document.body.style.overflow='hidden'
+}
+function closeAttendancePdfPicker(){const dg=Q('attendancePdfDialog');if(dg)dg.classList.add('hide');document.body.style.overflow=''}
+function setAttendancePdfAll(v){document.querySelectorAll('.attendancePdfStaff').forEach(x=>x.checked=v)}
+function attendanceFourUpHtml(names){
+  const [st,en]=attendancePdfRange(),selected=new Set(names);let rows=attendanceRows().filter(r=>selected.has(r.name));
+  // Preview検証専用。保存先には一切書き込まず、PDF生成時のメモリ上だけでテスト勤怠を補う。
+  const isPreview=/vercel\.app$/i.test(location.hostname)&&location.hostname!=='zucca-attendance-iphone-zucca214-1304.vercel.app';
+  if(isPreview && rows.length===0 && names.length){
+    const sample=names.slice(0,Math.min(4,names.length)),dates=['2026-09-21','2026-09-22'];
+    rows=sample.flatMap((name,idx)=>dates.map((date,j)=>({name,date,inTime:j?'17:00':'10:00',outTime:j?'22:30':'15:00',breakTime:j?0.5:0.25,workTime:j?5:4.75,overtime:0,nightTime:j?0.5:0,transport:500})));
+  }
+  const groups={};rows.forEach(r=>(groups[r.name]??=[]).push(r));
+  const escp=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const cards=names.map(n=>{const rs=groups[n]||[];let work=0,br=0,ot=0,night=0,transport=0;const body=rs.map(r=>{work+=r.workTime;br+=r.breakTime;ot+=r.overtime;night+=r.nightTime;if(r.transport!==null)transport+=Number(r.transport)||0;return '<tr><td>'+escp(r.date.slice(5).replace('-','/'))+'</td><td>'+escp(r.inTime||'--')+'–'+escp(r.outTime||'--')+'</td><td>'+fmt(r.breakTime)+'</td><td>'+fmt(r.workTime)+'</td><td>'+fmt(r.overtime)+'</td><td>'+fmt(r.nightTime)+'</td><td>'+(r.transport===null?'--':yen(r.transport))+'</td></tr>'}).join('');return '<article class="mini"><header><b>ZUCCA</b><span>勤怠記録</span><small>'+iso(st)+'〜'+iso(en)+'</small></header><h2>'+escp(n)+'</h2><table><thead><tr><th>日付</th><th>勤務</th><th>休憩</th><th>実働</th><th>残業</th><th>深夜</th><th>交通費</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">勤怠なし</td></tr>')+'</tbody><tfoot><tr><th>合計</th><td>--</td><td>'+fmt(br)+'</td><td>'+fmt(work)+'</td><td>'+fmt(ot)+'</td><td>'+fmt(night)+'</td><td>'+yen(transport)+'</td></tr></tfoot></table></article>'});
+  const pages=[];for(let i=0;i<cards.length;i+=4)pages.push('<section class="page">'+cards.slice(i,i+4).join('')+'</section>');
+  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZUCCA 勤怠記録</title><style>*{box-sizing:border-box}html,body{margin:0;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}.page{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:5mm;width:208mm;height:294mm;padding:7mm;break-after:page;page-break-after:always}.page:last-child{break-after:auto;page-break-after:auto}.mini{border:1px solid #cbd5e1;padding:4mm;overflow:hidden;break-inside:avoid}.mini header{display:flex;align-items:center;gap:3mm;border-bottom:2px solid #111827;padding-bottom:1.5mm}.mini header b{font-size:9px;letter-spacing:.12em}.mini header span,.mini header small{font-size:7px}.mini header small{margin-left:auto}.mini h2{font-size:12px;margin:2mm 0}.mini table{width:100%;border-collapse:collapse;table-layout:fixed}.mini th,.mini td{padding:1.1mm .4mm;border-bottom:1px solid #cbd5e1;font-size:6.4px;text-align:center;overflow-wrap:anywhere}.mini th{background:#f8fafc}.mini tfoot th,.mini tfoot td{font-weight:800;border-top:1.5px solid #111827}@page{size:A4 portrait;margin:0}@media print{html,body{width:210mm}.page{margin:0}}</style></head><body>'+pages.join('')+'</body></html>'
+}
+function printSelectedAttendanceFourUp(){
+  const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
+  if(!names.length){alert('スタッフを1人以上選択してください。');return}
+  // サーバー側PDF生成へ送るのはPDFに必要な集計済み勤怠だけ。保存・更新APIは呼ばない。
+  const [st,en]=attendancePdfRange(),wanted=new Set(names);
+  let rows=attendanceRows().filter(r=>wanted.has(r.name));
+  const isPreview=/vercel\.app$/i.test(location.hostname)&&location.hostname!=='zucca-attendance-iphone-zucca214-1304.vercel.app';
+  if(isPreview&&rows.length===0){
+    const dates=['2026-09-21','2026-09-22'];
+    rows=names.slice(0,4).flatMap(name=>dates.map((date,j)=>({name,date,inTime:j?'17:00':'10:00',outTime:j?'22:30':'15:00',breakTime:j?.5:.25,workTime:j?5:4.75,overtime:0,nightTime:j?.5:0,transport:500})));
+  }
+  const x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports();
+  const payroll={};
+  names.forEach(name=>{
+    const t=staffTotal(x,name),rate=Number(w[name]||0),p=payrollDetail(t,rate,Number(tr[name]||0));
+    payroll[name]={days:t[0],rate,work:t[1]||0,breakTime:t[2]||0,overtime:t[3]||0,night:t[4]||0,base:p.base,overtimePremium:p.overtimePremium,nightPremium:p.nightPremium,transport:p.transport,total:p.total};
+  });
+  // PDFは出勤日のみ。給与明細と日別勤怠を1人1ページに収める。
+  rows=rows.filter(r=>r.inTime&&r.inTime!=='--');
+  const payload={period:{start:iso(st),end:iso(en)},names,rows,payroll};
+  closeAttendancePdfPicker();
+  fetch('/api/attendance-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(async r=>{if(!r.ok)throw new Error(await r.text());return r.blob()})
+    .then(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='ZUCCA 勤怠記録PDFを開く';a.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:10001;background:#111827;color:white;padding:16px;text-align:center;border-radius:14px;font-weight:800;text-decoration:none';document.body.appendChild(a);a.click();setTimeout(()=>URL.revokeObjectURL(url),120000)})
+    .catch(e=>alert('PDF生成に失敗しました：'+String(e.message||e)));
+}
+
 </script></body></html>
