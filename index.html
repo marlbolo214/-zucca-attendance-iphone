@@ -943,27 +943,11 @@ function attendanceFourUpHtml(names){
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
   if(!names.length){alert('スタッフを1人以上選択してください。');return}
-  const html=attendanceFourUpHtml(names);
-  // iPhoneのアプリ内ブラウザでも確実に見られるよう、別タブ・iframe・自動printを使わず
-  // 同じページを印刷プレビューへ切り替える。勤怠データへの書き込みは行わない。
-  const shell=document.createElement('div');
-  shell.id='attendancePrintPreview';
-  shell.style.cssText='position:fixed;inset:0;z-index:10000;background:white;overflow:auto';
-  const controls=document.createElement('div');
-  controls.className='no-print';
-  controls.style.cssText='position:sticky;top:0;z-index:3;background:white;padding:10px;display:flex;gap:8px;border-bottom:1px solid #e5e7eb';
-  const printBtn=document.createElement('button');printBtn.type='button';printBtn.className='admin';printBtn.textContent='iPhoneの印刷画面を開く';printBtn.onclick=()=>window.print();
-  const backBtn=document.createElement('button');backBtn.type='button';backBtn.textContent='戻る';backBtn.style.background='#6b7280';backBtn.onclick=()=>location.reload();
-  controls.append(printBtn,backBtn);
-  const doc=new DOMParser().parseFromString(html,'text/html');
-  const style=[...doc.head.querySelectorAll('style')].map(x=>x.textContent).join('\n');
-  const st=document.createElement('style');st.id='attendancePrintStyle';st.textContent=style+'\n@media print{body>*:not(#attendancePrintPreview){display:none!important}#attendancePrintPreview{position:static!important;overflow:visible!important}#attendancePrintPreview .no-print{display:none!important}}';
-  document.head.appendChild(st);
-  const content=document.createElement('div');content.innerHTML=doc.body.innerHTML;
-  shell.append(controls,content);
+  // LINE/ChatGPT等のiPhoneアプリ内ブラウザでは動的DOMやprint()が制限されることがある。
+  // そのため印刷HTMLをdata URL化して同じタブへ直接遷移する。
+  const html=attendanceFourUpHtml(names).replace('</body>','<div class="printControls no-print"><button type="button" onclick="window.print()">iPhoneの印刷画面を開く</button><button type="button" onclick="history.back()">戻る</button></div><style>.printControls{position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;display:flex;gap:8px;background:white;padding:10px;border:1px solid #ddd;border-radius:12px}.printControls button{flex:1;padding:14px;border:0;border-radius:10px;background:#374151;color:white;font-weight:800;font-size:16px}@media print{.no-print{display:none!important}}</style></body>');
   closeAttendancePdfPicker();
-  document.body.appendChild(shell);
-  document.body.style.overflow='hidden';
+  location.href='data:text/html;charset=utf-8,'+encodeURIComponent(html);
 }
 
 </script></body></html>
