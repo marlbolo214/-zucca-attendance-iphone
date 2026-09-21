@@ -980,7 +980,15 @@ function printSelectedAttendanceFourUp(){
     const dates=['2026-09-21','2026-09-22'];
     rows=names.slice(0,4).flatMap(name=>dates.map((date,j)=>({name,date,inTime:j?'17:00':'10:00',outTime:j?'22:30':'15:00',breakTime:j?.5:.25,workTime:j?5:4.75,overtime:0,nightTime:j?.5:0,transport:500})));
   }
-  const payload={period:{start:iso(st),end:iso(en)},names,rows};
+  const x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports();
+  const payroll={};
+  names.forEach(name=>{
+    const t=staffTotal(x,name),rate=Number(w[name]||0),p=payrollDetail(t,rate,Number(tr[name]||0));
+    payroll[name]={days:t[0],rate,work:t[1]||0,breakTime:t[2]||0,overtime:t[3]||0,night:t[4]||0,base:p.base,overtimePremium:p.overtimePremium,nightPremium:p.nightPremium,transport:p.transport,total:p.total};
+  });
+  // PDFは出勤日のみ。給与明細と日別勤怠を1人1ページに収める。
+  rows=rows.filter(r=>r.inTime&&r.inTime!=='--');
+  const payload={period:{start:iso(st),end:iso(en)},names,rows,payroll};
   closeAttendancePdfPicker();
   fetch('/api/attendance-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(async r=>{if(!r.ok)throw new Error(await r.text());return r.blob()})
