@@ -927,6 +927,10 @@ async function init(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 </script><script>
 function openCleanAttendancePrint(){
+ const oldProbe=document.getElementById('pdfProbe'); if(oldProbe) oldProbe.remove();
+ const probe=document.createElement('div'); probe.id='pdfProbe'; probe.textContent='PDFボタン動作OK';
+ probe.style.cssText='position:fixed;left:16px;right:16px;top:calc(16px + env(safe-area-inset-top));z-index:99999;background:#16a34a;color:#fff;padding:18px;text-align:center;border-radius:14px;font-size:20px;font-weight:900;box-shadow:0 8px 30px #0005';
+ document.body.appendChild(probe); setTimeout(()=>probe.remove(),5000);
  let rows=attendanceRows();
  // Previewで勤怠0件でもPDF画面の動作確認ができるよう、メモリ上だけのサンプルを使用（保存・同期なし）
  if(!rows.length){
