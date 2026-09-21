@@ -943,11 +943,19 @@ function attendanceFourUpHtml(names){
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
   if(!names.length){alert('スタッフを1人以上選択してください。');return}
-  // LINE/ChatGPT等のiPhoneアプリ内ブラウザでは動的DOMやprint()が制限されることがある。
-  // そのため印刷HTMLをdata URL化して同じタブへ直接遷移する。
-  const html=attendanceFourUpHtml(names).replace('</body>','<div class="printControls no-print"><button type="button" onclick="window.print()">iPhoneの印刷画面を開く</button><button type="button" onclick="history.back()">戻る</button></div><style>.printControls{position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;display:flex;gap:8px;background:white;padding:10px;border:1px solid #ddd;border-radius:12px}.printControls button{flex:1;padding:14px;border:0;border-radius:10px;background:#374151;color:white;font-weight:800;font-size:16px}@media print{.no-print{display:none!important}}</style></body>');
+  // iPhone向け：印刷APIや別タブに依存せず、選択内容をHTMLファイルとして直接保存/共有できる形で生成。
+  // Safariの共有メニューから「プリント」または「ファイルに保存」でPDF化できる。
+  const html=attendanceFourUpHtml(names);
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='ZUCCA_勤怠記録_'+new Date().toISOString().slice(0,10)+'.html';
+  a.style.display='none';
+  document.body.appendChild(a);
   closeAttendancePdfPicker();
-  location.href='data:text/html;charset=utf-8,'+encodeURIComponent(html);
+  a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},60000);
 }
 
 </script></body></html>
