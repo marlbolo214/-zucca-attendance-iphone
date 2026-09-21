@@ -941,6 +941,18 @@ function attendanceFourUpHtml(names){
 }
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);if(!names.length){alert('スタッフを1人以上選択してください。');return}
-  const pw=open('','_blank');if(!pw){alert('印刷画面を開けませんでした。');return}pw.document.open();pw.document.write(attendanceFourUpHtml(names));pw.document.close()
+  const html=attendanceFourUpHtml(names);
+  const pw=open('about:blank','_blank');
+  if(pw){
+    pw.document.open();pw.document.write(html);pw.document.close();
+    Q('attendancePdfDialog')?.close();
+    setTimeout(()=>{try{pw.focus();pw.print()}catch(e){}},500);
+    return;
+  }
+  // iPhone/Safariで新規タブがブロックされた場合は、同じ画面に印刷用HTMLを表示する。
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  Q('attendancePdfDialog')?.close();
+  location.href=url;
 }
 </script></body></html>
