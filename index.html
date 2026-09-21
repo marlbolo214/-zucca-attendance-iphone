@@ -950,19 +950,20 @@ function attendanceFourUpHtml(names){
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
   if(!names.length){alert('スタッフを1人以上選択してください。');return}
-  // iPhone向け：印刷APIや別タブに依存せず、選択内容をHTMLファイルとして直接保存/共有できる形で生成。
-  // Safariの共有メニューから「プリント」または「ファイルに保存」でPDF化できる。
-  const html=attendanceFourUpHtml(names);
-  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='ZUCCA_勤怠記録_'+new Date().toISOString().slice(0,10)+'.html';
-  a.style.display='none';
-  document.body.appendChild(a);
+  // サーバー側PDF生成へ送るのはPDFに必要な集計済み勤怠だけ。保存・更新APIは呼ばない。
+  const [st,en]=attendancePdfRange(),wanted=new Set(names);
+  let rows=attendanceRows().filter(r=>wanted.has(r.name));
+  const isPreview=/vercel\.app$/i.test(location.hostname)&&location.hostname!=='zucca-attendance-iphone-zucca214-1304.vercel.app';
+  if(isPreview&&rows.length===0){
+    const dates=['2026-09-21','2026-09-22'];
+    rows=names.slice(0,4).flatMap(name=>dates.map((date,j)=>({name,date,inTime:j?'17:00':'10:00',outTime:j?'22:30':'15:00',breakTime:j?.5:.25,workTime:j?5:4.75,overtime:0,nightTime:j?.5:0,transport:500})));
+  }
+  const payload={period:{start:iso(st),end:iso(en)},names,rows};
   closeAttendancePdfPicker();
-  a.click();
-  setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},60000);
+  fetch('/api/attendance-pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+    .then(async r=>{if(!r.ok)throw new Error(await r.text());return r.blob()})
+    .then(blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener';a.textContent='ZUCCA 勤怠記録PDFを開く';a.style.cssText='position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:10001;background:#111827;color:white;padding:16px;text-align:center;border-radius:14px;font-weight:800;text-decoration:none';document.body.appendChild(a);a.click();setTimeout(()=>URL.revokeObjectURL(url),120000)})
+    .catch(e=>alert('PDF生成に失敗しました：'+String(e.message||e)));
 }
 
 </script></body></html>
