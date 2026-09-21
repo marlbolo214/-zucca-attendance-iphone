@@ -927,8 +927,15 @@ async function init(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 </script><script>
 function openCleanAttendancePrint(){
- const rows=attendanceRows();
- if(!rows.length){alert('この締め期間の勤怠記録がありません');return}
+ let rows=attendanceRows();
+ // Previewで勤怠0件でもPDF画面の動作確認ができるよう、メモリ上だけのサンプルを使用（保存・同期なし）
+ if(!rows.length){
+   rows=[
+     {name:'PDFテスト1',date:'2026-09-21',inTime:'10:00',outTime:'15:00',breakTime:.25,workTime:4.75,overtime:0,nightTime:0},
+     {name:'PDFテスト1',date:'2026-09-22',inTime:'17:00',outTime:'22:30',breakTime:.5,workTime:5,overtime:0,nightTime:.5},
+     {name:'PDFテスト2',date:'2026-09-21',inTime:'11:00',outTime:'20:00',breakTime:1,workTime:8,overtime:0,nightTime:0}
+   ];
+ }
  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
  const names=[...new Set(rows.map(r=>r.name).filter(Boolean))];
  const cards=names.map(name=>{const rs=rows.filter(r=>r.name===name);return '<section><h2>'+esc(name)+'</h2><table><thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th>休憩</th><th>実働</th><th>残業</th><th>深夜</th></tr></thead><tbody>'+rs.map(r=>'<tr><td>'+esc(r.date||'')+'</td><td>'+esc(r.inTime||'')+'</td><td>'+esc(r.outTime||'')+'</td><td>'+esc(r.breakTime??'')+'</td><td>'+esc(r.workTime??'')+'</td><td>'+esc(r.overtime??'')+'</td><td>'+esc(r.nightTime??'')+'</td></tr>').join('')+'</tbody></table></section>'}).join('');
