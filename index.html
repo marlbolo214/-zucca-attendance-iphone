@@ -941,19 +941,23 @@ function attendanceFourUpHtml(names){
   return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZUCCA 勤怠記録</title><style>*{box-sizing:border-box}html,body{margin:0;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}.page{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:5mm;width:208mm;height:294mm;padding:7mm;break-after:page;page-break-after:always}.page:last-child{break-after:auto;page-break-after:auto}.mini{border:1px solid #cbd5e1;padding:4mm;overflow:hidden;break-inside:avoid}.mini header{display:flex;align-items:center;gap:3mm;border-bottom:2px solid #111827;padding-bottom:1.5mm}.mini header b{font-size:9px;letter-spacing:.12em}.mini header span,.mini header small{font-size:7px}.mini header small{margin-left:auto}.mini h2{font-size:12px;margin:2mm 0}.mini table{width:100%;border-collapse:collapse;table-layout:fixed}.mini th,.mini td{padding:1.1mm .4mm;border-bottom:1px solid #cbd5e1;font-size:6.4px;text-align:center;overflow-wrap:anywhere}.mini th{background:#f8fafc}.mini tfoot th,.mini tfoot td{font-weight:800;border-top:1.5px solid #111827}@page{size:A4 portrait;margin:0}@media print{html,body{width:210mm}.page{margin:0}}</style></head><body>'+pages.join('')+'</body></html>'
 }
 function printSelectedAttendanceFourUp(){
-  const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);if(!names.length){alert('スタッフを1人以上選択してください。');return}
+  const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
+  if(!names.length){alert('スタッフを1人以上選択してください。');return}
   const html=attendanceFourUpHtml(names);
-  const pw=open('about:blank','_blank');
-  if(pw){
-    pw.document.open();pw.document.write(html);pw.document.close();
-    closeAttendancePdfPicker();
-    setTimeout(()=>{try{pw.focus();pw.print()}catch(e){}},500);
-    return;
-  }
-  // iPhone/Safariで新規タブがブロックされた場合は、同じ画面に印刷用HTMLを表示する。
-  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
-  const url=URL.createObjectURL(blob);
+  // iPhoneのアプリ内ブラウザでは別タブ + print() が無視されることがあるため、
+  // 非表示iframeへ印刷用HTMLを書き込み、そのフレーム自身を印刷する。
+  let frame=Q('attendancePrintFrame');
+  if(frame)frame.remove();
+  frame=document.createElement('iframe');
+  frame.id='attendancePrintFrame';
+  frame.setAttribute('aria-hidden','true');
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:.01;pointer-events:none';
+  document.body.appendChild(frame);
+  const doc=frame.contentWindow.document;
+  doc.open();doc.write(html);doc.close();
   closeAttendancePdfPicker();
-  location.href=url;
+  const doPrint=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){alert('印刷画面を開けませんでした。Safariで開いてもう一度お試しください。')}};
+  if(doc.readyState==='complete')setTimeout(doPrint,250);
+  else frame.onload=()=>setTimeout(doPrint,250);
 }
 </script></body></html>
