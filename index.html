@@ -177,9 +177,9 @@
     <div class="overviewBox"><small>支給額（交通費込み） 合計</small><b id="sumTotal">¥0</b></div>
   </div>
 </div>
-<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
+<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="openAttendancePdfPicker()">勤怠記録PDF</button><button onclick="printReport()">従来PDF/印刷</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
-</div><script>
+</div><dialog id="attendancePdfDialog" class="no-print" style="border:0;border-radius:18px;max-width:560px;width:calc(100% - 32px)"><div><h2>勤怠記録PDF</h2><p class="note">PDFにするスタッフを選択してください。勤怠データは変更しません。</p><div class="row actions"><button type="button" onclick="setAttendancePdfAll(true)">全員選択</button><button type="button" onclick="setAttendancePdfAll(false)">全解除</button></div><div id="attendancePdfStaffList" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0"></div><div class="row actions"><button type="button" onclick="printSelectedAttendanceFourUp()">選択したスタッフをPDF/印刷</button><button type="button" onclick="Q('attendancePdfDialog').close()">閉じる</button></div></div></dialog><script>
 // ZUCCA Attendance v47 expired recovery link auto-close + session safety + v46/v45/v44
 // ZUCCA Attendance v41 original ZUCCA duplicate staff cleanup
 // ZUCCA Attendance v41 duplicate fullname repair
@@ -925,4 +925,22 @@ async function init(){
   },30000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+
+function attendancePdfRange(){return range()}
+function openAttendancePdfPicker(){
+  const list=Q('attendancePdfStaffList'),dg=Q('attendancePdfDialog');if(!list||!dg)return;
+  list.replaceChildren();staff().forEach(n=>{const lab=document.createElement('label');lab.style.cssText='display:flex;gap:8px;align-items:center;border:1px solid #e5e7eb;border-radius:10px;padding:10px';const cb=document.createElement('input');cb.type='checkbox';cb.className='attendancePdfStaff';cb.value=n;cb.checked=true;cb.style.width='auto';const sp=document.createElement('span');sp.textContent=n;lab.append(cb,sp);list.appendChild(lab)});dg.showModal()
+}
+function setAttendancePdfAll(v){document.querySelectorAll('.attendancePdfStaff').forEach(x=>x.checked=v)}
+function attendanceFourUpHtml(names){
+  const [st,en]=attendancePdfRange(),selected=new Set(names),rows=attendanceRows().filter(r=>selected.has(r.name)),groups={};rows.forEach(r=>(groups[r.name]??=[]).push(r));
+  const escp=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const cards=names.map(n=>{const rs=groups[n]||[];let work=0,br=0,ot=0,night=0,transport=0;const body=rs.map(r=>{work+=r.workTime;br+=r.breakTime;ot+=r.overtime;night+=r.nightTime;if(r.transport!==null)transport+=Number(r.transport)||0;return '<tr><td>'+escp(r.date.slice(5).replace('-','/'))+'</td><td>'+escp(r.inTime||'--')+'–'+escp(r.outTime||'--')+'</td><td>'+fmt(r.breakTime)+'</td><td>'+fmt(r.workTime)+'</td><td>'+fmt(r.overtime)+'</td><td>'+fmt(r.nightTime)+'</td><td>'+(r.transport===null?'--':yen(r.transport))+'</td></tr>'}).join('');return '<article class="mini"><header><b>ZUCCA</b><span>勤怠記録</span><small>'+iso(st)+'〜'+iso(en)+'</small></header><h2>'+escp(n)+'</h2><table><thead><tr><th>日付</th><th>勤務</th><th>休憩</th><th>実働</th><th>残業</th><th>深夜</th><th>交通費</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">勤怠なし</td></tr>')+'</tbody><tfoot><tr><th>合計</th><td>--</td><td>'+fmt(br)+'</td><td>'+fmt(work)+'</td><td>'+fmt(ot)+'</td><td>'+fmt(night)+'</td><td>'+yen(transport)+'</td></tr></tfoot></table></article>'});
+  const pages=[];for(let i=0;i<cards.length;i+=4)pages.push('<section class="page">'+cards.slice(i,i+4).join('')+'</section>');
+  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ZUCCA 勤怠記録</title><style>*{box-sizing:border-box}html,body{margin:0;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}.page{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:5mm;width:208mm;height:294mm;padding:7mm;break-after:page;page-break-after:always}.page:last-child{break-after:auto;page-break-after:auto}.mini{border:1px solid #cbd5e1;padding:4mm;overflow:hidden;break-inside:avoid}.mini header{display:flex;align-items:center;gap:3mm;border-bottom:2px solid #111827;padding-bottom:1.5mm}.mini header b{font-size:9px;letter-spacing:.12em}.mini header span,.mini header small{font-size:7px}.mini header small{margin-left:auto}.mini h2{font-size:12px;margin:2mm 0}.mini table{width:100%;border-collapse:collapse;table-layout:fixed}.mini th,.mini td{padding:1.1mm .4mm;border-bottom:1px solid #cbd5e1;font-size:6.4px;text-align:center;overflow-wrap:anywhere}.mini th{background:#f8fafc}.mini tfoot th,.mini tfoot td{font-weight:800;border-top:1.5px solid #111827}@page{size:A4 portrait;margin:0}@media print{html,body{width:210mm}.page{margin:0}}</style></head><body>'+pages.join('')+'</body></html>'
+}
+function printSelectedAttendanceFourUp(){
+  const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);if(!names.length){alert('スタッフを1人以上選択してください。');return}
+  const pw=open('','_blank');if(!pw){alert('印刷画面を開けませんでした。');return}pw.document.open();pw.document.write(attendanceFourUpHtml(names));pw.document.close()
+}
 </script></body></html>
