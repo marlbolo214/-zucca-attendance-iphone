@@ -177,7 +177,7 @@
     <div class="overviewBox"><small>支給額（交通費込み） 合計</small><b id="sumTotal">¥0</b></div>
   </div>
 </div>
-<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button></div></div></div>
+<div id="allmonthlyCards" class="summaryCards"></div><div class="tw closingTable"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="allmonthly"></tbody></table></div><div class="row actions"><button onclick="csv()">CSV出力</button><button onclick="printReport()">PDF/印刷</button><button onclick="openCleanAttendancePrint()">勤怠記録PDF（新）</button></div></div></div>
 <div id="printAll" class="c hide"><h2>全スタッフ 月間勤怠・給与集計</h2><p id="printPeriod"></p><div class="tw"><table><thead><tr><th>スタッフ</th><th>出勤日数</th><th>時給</th><th>実働</th><th>休憩</th><th>残業</th><th>残業割増</th><th>深夜</th><th>深夜割増</th><th>給与目安</th></tr></thead><tbody id="printBody"></tbody><tfoot><tr class="total"><td colspan="9">人件費合計</td><td id="printPayrollTotal">¥0</td></tr></tfoot></table></div></div>
 </div><script>
 // ZUCCA Attendance v47 expired recovery link auto-close + session safety + v46/v45/v44
@@ -925,4 +925,14 @@ async function init(){
   },30000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+</script><script>
+function openCleanAttendancePrint(){
+ const rows=attendanceRows();
+ if(!rows.length){alert('この締め期間の勤怠記録がありません');return}
+ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+ const names=[...new Set(rows.map(r=>r.name).filter(Boolean))];
+ const cards=names.map(name=>{const rs=rows.filter(r=>r.name===name);return '<section><h2>'+esc(name)+'</h2><table><thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th>休憩</th><th>実働</th><th>残業</th><th>深夜</th></tr></thead><tbody>'+rs.map(r=>'<tr><td>'+esc(r.date||'')+'</td><td>'+esc(r.inTime||'')+'</td><td>'+esc(r.outTime||'')+'</td><td>'+esc(r.breakTime??'')+'</td><td>'+esc(r.workTime??'')+'</td><td>'+esc(r.overtime??'')+'</td><td>'+esc(r.nightTime??'')+'</td></tr>').join('')+'</tbody></table></section>'}).join('');
+ const html='<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ZUCCA 勤怠記録</title><style>@page{size:A4 portrait;margin:8mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;margin:0}.toolbar{position:sticky;top:0;z-index:2;background:#111827;color:#fff;padding:12px;text-align:center}.toolbar button{font-size:18px;padding:10px 18px}main{display:grid;grid-template-columns:1fr 1fr;gap:5mm;padding:5mm}section{border:1px solid #aaa;padding:3mm;height:132mm;overflow:hidden;break-inside:avoid}h2{font-size:14px;margin:0 0 2mm}table{width:100%;border-collapse:collapse;font-size:7px}th,td{border:1px solid #bbb;padding:1px;text-align:center}@media print{.toolbar{display:none}main{padding:0}section:nth-child(4n){break-after:page}}</style><body><div class="toolbar"><button onclick="window.print()">印刷／PDF保存</button></div><main>'+cards+'</main></body></html>';
+ document.open();document.write(html);document.close();
+}
 </script></body></html>
