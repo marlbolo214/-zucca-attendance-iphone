@@ -934,7 +934,14 @@ function openAttendancePdfPicker(){
 function closeAttendancePdfPicker(){const dg=Q('attendancePdfDialog');if(dg)dg.classList.add('hide');document.body.style.overflow=''}
 function setAttendancePdfAll(v){document.querySelectorAll('.attendancePdfStaff').forEach(x=>x.checked=v)}
 function attendanceFourUpHtml(names){
-  const [st,en]=attendancePdfRange(),selected=new Set(names),rows=attendanceRows().filter(r=>selected.has(r.name)),groups={};rows.forEach(r=>(groups[r.name]??=[]).push(r));
+  const [st,en]=attendancePdfRange(),selected=new Set(names);let rows=attendanceRows().filter(r=>selected.has(r.name));
+  // Preview検証専用。保存先には一切書き込まず、PDF生成時のメモリ上だけでテスト勤怠を補う。
+  const isPreview=/vercel\.app$/i.test(location.hostname)&&location.hostname!=='zucca-attendance-iphone-zucca214-1304.vercel.app';
+  if(isPreview && rows.length===0 && names.length){
+    const sample=names.slice(0,Math.min(4,names.length)),dates=['2026-09-21','2026-09-22'];
+    rows=sample.flatMap((name,idx)=>dates.map((date,j)=>({name,date,inTime:j?'17:00':'10:00',outTime:j?'22:30':'15:00',breakTime:j?0.5:0.25,workTime:j?5:4.75,overtime:0,nightTime:j?0.5:0,transport:500})));
+  }
+  const groups={};rows.forEach(r=>(groups[r.name]??=[]).push(r));
   const escp=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const cards=names.map(n=>{const rs=groups[n]||[];let work=0,br=0,ot=0,night=0,transport=0;const body=rs.map(r=>{work+=r.workTime;br+=r.breakTime;ot+=r.overtime;night+=r.nightTime;if(r.transport!==null)transport+=Number(r.transport)||0;return '<tr><td>'+escp(r.date.slice(5).replace('-','/'))+'</td><td>'+escp(r.inTime||'--')+'–'+escp(r.outTime||'--')+'</td><td>'+fmt(r.breakTime)+'</td><td>'+fmt(r.workTime)+'</td><td>'+fmt(r.overtime)+'</td><td>'+fmt(r.nightTime)+'</td><td>'+(r.transport===null?'--':yen(r.transport))+'</td></tr>'}).join('');return '<article class="mini"><header><b>ZUCCA</b><span>勤怠記録</span><small>'+iso(st)+'〜'+iso(en)+'</small></header><h2>'+escp(n)+'</h2><table><thead><tr><th>日付</th><th>勤務</th><th>休憩</th><th>実働</th><th>残業</th><th>深夜</th><th>交通費</th></tr></thead><tbody>'+(body||'<tr><td colspan="7">勤怠なし</td></tr>')+'</tbody><tfoot><tr><th>合計</th><td>--</td><td>'+fmt(br)+'</td><td>'+fmt(work)+'</td><td>'+fmt(ot)+'</td><td>'+fmt(night)+'</td><td>'+yen(transport)+'</td></tr></tfoot></table></article>'});
   const pages=[];for(let i=0;i<cards.length;i+=4)pages.push('<section class="page">'+cards.slice(i,i+4).join('')+'</section>');
