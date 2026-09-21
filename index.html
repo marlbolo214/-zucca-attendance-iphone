@@ -159,7 +159,7 @@
 <hr><b>交通費設定</b>
 <p class="note">スタッフごとに「通常交通費（1日）」を登録します。新しい勤怠にはこの金額を初期入力し、日ごとの勤怠に固定保存します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b><div class="row actions" style="margin:10px 0"><button type="button" onclick="setReportPeriodOffset(-1)">前の締め期間</button><button type="button" onclick="setReportPeriodOffset(0)">今の締め期間</button></div><p class="note">表示期間：<b id="reportPeriodChoice"></b>　※表示を切り替えるだけで勤怠データは変更しません。</p>
+<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b><div style="margin:10px 0;padding:12px;background:#f8fafc;border-radius:12px"><b>集計・印刷期間</b><div class="row" style="margin-top:8px"><input id="reportStart" type="date" style="flex:1"><span style="align-self:center">〜</span><input id="reportEnd" type="date" style="flex:1"><button type="button" class="admin" onclick="applyCustomReportPeriod()">この期間を表示</button></div><div class="row actions"><button type="button" onclick="setReportPeriodOffset(-1)">前の締め期間</button><button type="button" onclick="setReportPeriodOffset(0)">今の締め期間</button></div><p class="note">表示期間：<b id="reportPeriodChoice"></b>　※表示・集計・PDF対象だけを切り替えます。保存済み勤怠は変更しません。</p></div>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
   <div class="payLegend">
@@ -710,17 +710,27 @@ function calc(a){
 
   return[work,b,overtime,night];
 }
-let reportPeriodOffset=0;
-function range(){
+let reportPeriodOffset=0,customReportRange=null;
+function defaultClosingRange(offset=0){
   let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);
-  s=new Date(s.getFullYear(),s.getMonth()+reportPeriodOffset,21);
-  return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]
+  s=new Date(s.getFullYear(),s.getMonth()+Number(offset||0),21);
+  return [s,new Date(s.getFullYear(),s.getMonth()+1,20)]
 }
-function setReportPeriodOffset(v){
-  reportPeriodOffset=Number(v)||0;
-  render(); allSummary();
-  const [st,en]=range(),el=Q('reportPeriodChoice');
-  if(el)el.textContent=iso(st)+' ～ '+iso(en);
+function range(){return customReportRange||defaultClosingRange(reportPeriodOffset)}
+function syncReportPeriodInputs(){
+  const [st,en]=range(),a=Q('reportStart'),b=Q('reportEnd'),el=Q('reportPeriodChoice');
+  if(a)a.value=iso(st);if(b)b.value=iso(en);if(el)el.textContent=iso(st)+' ～ '+iso(en);
+}
+function refreshReportPeriod(){render();allSummary();syncReportPeriodInputs()}
+function setReportPeriodOffset(v){reportPeriodOffset=Number(v)||0;customReportRange=null;refreshReportPeriod()}
+function applyCustomReportPeriod(){
+  const a=Q('reportStart')?.value,b=Q('reportEnd')?.value;
+  if(!a||!b){alert('開始日と終了日を選んでください。');return}
+  const st=new Date(a+'T00:00:00'),en=new Date(b+'T00:00:00');
+  if(Number.isNaN(st.getTime())||Number.isNaN(en.getTime())||st>en){alert('期間を確認してください。');return}
+  const days=Math.round((en-st)/86400000)+1;
+  if(days>62&&!confirm(days+'日間を表示します。よろしいですか？'))return;
+  customReportRange=[st,en];refreshReportPeriod();
 }
 function renderTodayTransport(s,d,a){let input=Q('todayTransport'),note=Q('todayTransportNote');if(!input)return;let saved=dailyTransportValue(s,d);input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です（既存勤怠）':saved===null?'通常交通費を初期表示しています。最初の打刻時に固定保存します。':'この日の勤怠に保存済みです。'}
 function saveTodayTransport(){let s=Q('staff').value,d=iso(new Date()),input=Q('todayTransport');if(!s||!input||input.value==='')return;setDailyTransport(s,d,input.value);let x=JSON.parse(localStorage.getItem(DK)||'{}'),a=x[s]?.[d]||[];render();allSummary();if(a.length)cloudAfterDayChange(s,d,a)}
