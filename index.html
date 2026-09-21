@@ -943,22 +943,27 @@ function attendanceFourUpHtml(names){
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
   if(!names.length){alert('スタッフを1人以上選択してください。');return}
-  // iPhoneでは window.print() の自動呼び出しがアプリ内ブラウザで無視されるため、
-  // 印刷専用画面を同じタブに表示し、ユーザー操作の「印刷する」ボタンから print() を呼ぶ。
   const html=attendanceFourUpHtml(names);
-  sessionStorage.setItem('zucca_attendance_print_html',html);
+  // iPhoneのアプリ内ブラウザでも確実に見られるよう、別タブ・iframe・自動printを使わず
+  // 同じページを印刷プレビューへ切り替える。勤怠データへの書き込みは行わない。
+  const shell=document.createElement('div');
+  shell.id='attendancePrintPreview';
+  shell.style.cssText='position:fixed;inset:0;z-index:10000;background:white;overflow:auto';
+  const controls=document.createElement('div');
+  controls.className='no-print';
+  controls.style.cssText='position:sticky;top:0;z-index:3;background:white;padding:10px;display:flex;gap:8px;border-bottom:1px solid #e5e7eb';
+  const printBtn=document.createElement('button');printBtn.type='button';printBtn.className='admin';printBtn.textContent='iPhoneの印刷画面を開く';printBtn.onclick=()=>window.print();
+  const backBtn=document.createElement('button');backBtn.type='button';backBtn.textContent='戻る';backBtn.style.background='#6b7280';backBtn.onclick=()=>location.reload();
+  controls.append(printBtn,backBtn);
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const style=[...doc.head.querySelectorAll('style')].map(x=>x.textContent).join('\n');
+  const st=document.createElement('style');st.id='attendancePrintStyle';st.textContent=style+'\n@media print{body>*:not(#attendancePrintPreview){display:none!important}#attendancePrintPreview{position:static!important;overflow:visible!important}#attendancePrintPreview .no-print{display:none!important}}';
+  document.head.appendChild(st);
+  const content=document.createElement('div');content.innerHTML=doc.body.innerHTML;
+  shell.append(controls,content);
   closeAttendancePdfPicker();
-  showAttendancePrintPreview(html);
-}
-function showAttendancePrintPreview(html){
-  const old=Q('attendancePrintPreview');if(old)old.remove();
-  const wrap=document.createElement('div');wrap.id='attendancePrintPreview';wrap.className='no-print';wrap.style.cssText='position:fixed;inset:0;z-index:10000;background:#f3f4f6;overflow:auto;padding:12px';
-  const bar=document.createElement('div');bar.style.cssText='position:sticky;top:0;z-index:2;background:white;border-radius:14px;padding:10px;margin:0 auto 10px;max-width:760px;display:flex;gap:8px;box-shadow:0 2px 12px #0002';
-  const p=document.createElement('button');p.textContent='印刷する';p.className='admin';p.type='button';p.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){alert('印刷画面を開けませんでした。右上の共有からSafariで開いてお試しください。')}};
-  const b=document.createElement('button');b.textContent='戻る';b.type='button';b.style.cssText='background:#6b7280';b.onclick=()=>{wrap.remove();document.body.style.overflow=''};
-  bar.append(p,b);
-  const frame=document.createElement('iframe');frame.style.cssText='display:block;width:100%;max-width:760px;height:calc(100dvh - 90px);margin:auto;border:0;background:white;border-radius:12px';frame.srcdoc=html;
-  wrap.append(bar,frame);document.body.appendChild(wrap);document.body.style.overflow='hidden';
+  document.body.appendChild(shell);
+  document.body.style.overflow='hidden';
 }
 
 </script></body></html>
