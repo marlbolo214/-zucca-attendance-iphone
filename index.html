@@ -943,21 +943,22 @@ function attendanceFourUpHtml(names){
 function printSelectedAttendanceFourUp(){
   const names=[...document.querySelectorAll('.attendancePdfStaff:checked')].map(x=>x.value);
   if(!names.length){alert('スタッフを1人以上選択してください。');return}
+  // iPhoneでは window.print() の自動呼び出しがアプリ内ブラウザで無視されるため、
+  // 印刷専用画面を同じタブに表示し、ユーザー操作の「印刷する」ボタンから print() を呼ぶ。
   const html=attendanceFourUpHtml(names);
-  // iPhoneのアプリ内ブラウザでは別タブ + print() が無視されることがあるため、
-  // 非表示iframeへ印刷用HTMLを書き込み、そのフレーム自身を印刷する。
-  let frame=Q('attendancePrintFrame');
-  if(frame)frame.remove();
-  frame=document.createElement('iframe');
-  frame.id='attendancePrintFrame';
-  frame.setAttribute('aria-hidden','true');
-  frame.style.cssText='position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:.01;pointer-events:none';
-  document.body.appendChild(frame);
-  const doc=frame.contentWindow.document;
-  doc.open();doc.write(html);doc.close();
+  sessionStorage.setItem('zucca_attendance_print_html',html);
   closeAttendancePdfPicker();
-  const doPrint=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){alert('印刷画面を開けませんでした。Safariで開いてもう一度お試しください。')}};
-  if(doc.readyState==='complete')setTimeout(doPrint,250);
-  else frame.onload=()=>setTimeout(doPrint,250);
+  showAttendancePrintPreview(html);
 }
+function showAttendancePrintPreview(html){
+  const old=Q('attendancePrintPreview');if(old)old.remove();
+  const wrap=document.createElement('div');wrap.id='attendancePrintPreview';wrap.className='no-print';wrap.style.cssText='position:fixed;inset:0;z-index:10000;background:#f3f4f6;overflow:auto;padding:12px';
+  const bar=document.createElement('div');bar.style.cssText='position:sticky;top:0;z-index:2;background:white;border-radius:14px;padding:10px;margin:0 auto 10px;max-width:760px;display:flex;gap:8px;box-shadow:0 2px 12px #0002';
+  const p=document.createElement('button');p.textContent='印刷する';p.className='admin';p.type='button';p.onclick=()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(e){alert('印刷画面を開けませんでした。右上の共有からSafariで開いてお試しください。')}};
+  const b=document.createElement('button');b.textContent='戻る';b.type='button';b.style.cssText='background:#6b7280';b.onclick=()=>{wrap.remove();document.body.style.overflow=''};
+  bar.append(p,b);
+  const frame=document.createElement('iframe');frame.style.cssText='display:block;width:100%;max-width:760px;height:calc(100dvh - 90px);margin:auto;border:0;background:white;border-radius:12px';frame.srcdoc=html;
+  wrap.append(bar,frame);document.body.appendChild(wrap);document.body.style.overflow='hidden';
+}
+
 </script></body></html>
