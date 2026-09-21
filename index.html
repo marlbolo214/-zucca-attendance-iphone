@@ -159,7 +159,7 @@
 <hr><b>交通費設定</b>
 <p class="note">スタッフごとに「通常交通費（1日）」を登録します。新しい勤怠にはこの金額を初期入力し、日ごとの勤怠に固定保存します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b>
+<hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b><div class="row actions" style="margin:10px 0"><button type="button" onclick="setReportPeriodOffset(-1)">前の締め期間</button><button type="button" onclick="setReportPeriodOffset(0)">今の締め期間</button></div><p class="note">表示期間：<b id="reportPeriodChoice"></b>　※表示を切り替えるだけで勤怠データは変更しません。</p>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
   <div class="payLegend">
@@ -710,7 +710,18 @@ function calc(a){
 
   return[work,b,overtime,night];
 }
-function range(){let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]}
+let reportPeriodOffset=0;
+function range(){
+  let n=new Date(),s=n.getDate()>=21?new Date(n.getFullYear(),n.getMonth(),21):new Date(n.getFullYear(),n.getMonth()-1,21);
+  s=new Date(s.getFullYear(),s.getMonth()+reportPeriodOffset,21);
+  return[s,new Date(s.getFullYear(),s.getMonth()+1,20)]
+}
+function setReportPeriodOffset(v){
+  reportPeriodOffset=Number(v)||0;
+  render(); allSummary();
+  const [st,en]=range(),el=Q('reportPeriodChoice');
+  if(el)el.textContent=iso(st)+' ～ '+iso(en);
+}
 function renderTodayTransport(s,d,a){let input=Q('todayTransport'),note=Q('todayTransportNote');if(!input)return;let saved=dailyTransportValue(s,d);input.value=saved===null?(a.length?'':initialDailyTransport(s)):saved;if(note)note.textContent=saved===null&&a.length?'日別交通費は未設定です（既存勤怠）':saved===null?'通常交通費を初期表示しています。最初の打刻時に固定保存します。':'この日の勤怠に保存済みです。'}
 function saveTodayTransport(){let s=Q('staff').value,d=iso(new Date()),input=Q('todayTransport');if(!s||!input||input.value==='')return;setDailyTransport(s,d,input.value);let x=JSON.parse(localStorage.getItem(DK)||'{}'),a=x[s]?.[d]||[];render();allSummary();if(a.length)cloudAfterDayChange(s,d,a)}
 function hasInvalidWorkRange(a){
@@ -905,6 +916,7 @@ async function init(){
   },1000);
 
   rs();
+  setReportPeriodOffset(0);
 
   if(cloudSession())syncCloud();
 
