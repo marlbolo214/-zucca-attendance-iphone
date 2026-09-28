@@ -79,6 +79,8 @@
 #transportRows input{width:100%;box-sizing:border-box}
 .dailyPayRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #e5e7eb;flex-wrap:wrap}.dailyPayRow button{padding:10px 12px;font-size:14px}.dailyPayActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dailyPayBadge{font-weight:700;color:#166534}.dailyPayPending{color:#b45309}.dailyPayControls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.dailyPayControls select{max-width:280px}.payStatus{font-size:12px;font-weight:700;color:#166534;white-space:nowrap}.payStatus.pending{color:#b45309}
 .dailyPayRow button:disabled{opacity:.5}
+.dailyPayActions input{width:105px;padding:9px;font-size:16px;text-align:right}.dailyPayWarning{color:#b45309;font-weight:700}
+.dailyPayEstimate{display:block;color:#374151;font-size:14px;margin-top:4px}.dailyPayRow>div:first-child{min-width:180px}
 
 @media print{body{background:white}.top,.no-print{display:none!important}.c{box-shadow:none;border:0;margin:0;padding:8px}.w{max-width:none;padding:0}}.timeSelectWrap{display:grid;grid-template-columns:minmax(88px,1fr) auto minmax(88px,1fr) auto;gap:6px;align-items:center;flex:1}
 .timeSelectWrap select{width:100%;min-width:0;text-align:center;font-size:18px;font-weight:700;padding:13px 8px}
@@ -161,7 +163,7 @@
 <hr><b>交通費設定</b>
 <p class="note">スタッフごとに「通常交通費（1日）」を登録します。新しい勤怠にはこの金額を初期入力し、日ごとの勤怠に固定保存します。</p>
 <div id="transportRows"></div><div class="row actions"><button onclick="saveTransports()">交通費を保存</button></div><p id="transportMsg" class="note"></p>
-<hr><b>日払いの支払い確認</b><p class="note">日払い対象にした勤務日だけ「支払い済み」を記録します。クラウド接続中の管理者端末で操作してください。給与集計額は変更しません。</p><div class="dailyPayControls"><label for="dailyPayStaff">スタッフ</label><select id="dailyPayStaff" onchange="renderDailyPay()"></select></div><p id="dailyPayMsg" class="note"></p><div id="dailyPayRows"></div>
+<hr><b>日払いの支払い確認</b><p class="note">日払い対象の勤務日に、実際に渡した金額を入力して「支払い済み」にします。給与明細の振込額からその金額を差し引きます。クラウド接続中の管理者端末で操作してください。</p><div class="dailyPayControls"><label for="dailyPayStaff">スタッフ</label><select id="dailyPayStaff" onchange="renderDailyPay()"></select></div><p id="dailyPayMsg" class="note"></p><div id="dailyPayRows"></div>
 <hr><b>打刻の修正・削除</b><p class="note">スタッフと日付を選んで、過去の出勤・休憩・退勤時刻を「時・分」で見やすく修正できます。分は15分単位（00・15・30・45）です。</p><div class="row"><select id="editStaff" style="flex:1"></select><input id="editDate" type="date" style="flex:1"><button class="admin" onclick="loadEdit()">読み込む</button></div><div id="editRows"></div><div class="transportField"><label for="editTransport">交通費</label><input id="editTransport" type="number" min="0" step="1" inputmode="numeric"><span>円</span></div><p id="editTransportNote" class="note"></p><div class="row actions"><button onclick="addEditRow()">打刻を追加</button><button onclick="saveEdits()">修正を保存</button></div><p id="editMsg" class="note"></p><hr><b>締め日用・全スタッフ一覧</b><div style="margin:10px 0;padding:12px;background:#f8fafc;border-radius:12px"><b>集計・印刷期間</b><div class="row" style="margin-top:8px"><input id="reportStart" type="date" style="flex:1"><span style="align-self:center">〜</span><input id="reportEnd" type="date" style="flex:1"><button type="button" class="admin" onclick="applyCustomReportPeriod()">この期間を表示</button></div><div class="row actions"><button type="button" onclick="setReportPeriodOffset(-1)">前の締め期間</button><button type="button" onclick="setReportPeriodOffset(0)">今の締め期間</button></div><p class="note">表示期間：<b id="reportPeriodChoice"></b>　※表示・集計・PDF対象だけを切り替えます。保存済み勤怠は変更しません。</p></div>
 <p class="note">スタッフごとに給与内訳をカード表示。残業・深夜の割増金額も色分けして確認できます。</p>
 <div class="payDash">
@@ -197,7 +199,7 @@ const PHOTO_STAFF=["チノ", "アスカ", "ヒヨリ", "チヒロ", "ユウス�
 const SUPABASE_URL="https://bwxmdwvpltopkfdyclyi.supabase.co",SUPABASE_KEY="sb_publishable_2M29EwIFoMGCMn6qfqp3eg_-xugTGMG";
 const CK='zucca_cloud_session_v1',DIRTY='zucca_dirty_days_v1',DELETED='zucca_deleted_staff_v1',WK='zucca_wages_v1',TK='zucca_transport_v1',DTK='zucca_daily_transport_v1',DEVICE_ID_KEY='zucca_device_id_v1',DEVICE_TYPE_KEY='zucca_device_type_v1';
 let cloudBusy=false;
-let dailyPayRecords={},dailyPayBusy=false;
+let dailyPayRecords={},dailyPayDrafts={},dailyPayBusy=false;
 let deviceVerified=false;
 let recoveryAccessToken='';
 const RECOVERY_DONE_KEY='zucca_password_recovery_done_v1';
@@ -377,7 +379,7 @@ async function cloudLogin(){
   }
 }
 
-function cloudLogout(){saveCloudSession(null);dailyPayRecords={};renderDailyPay();render();renderDevices([]);cloudSetStatus('未接続（端末内保存で利用中）');}
+function cloudLogout(){saveCloudSession(null);dailyPayRecords={};dailyPayDrafts={};renderDailyPay();render();renderDevices([]);cloudSetStatus('未接続（端末内保存で利用中）');}
 function dirtySet(){try{return new Set(JSON.parse(localStorage.getItem(DIRTY)||'[]'))}catch(e){return new Set()}}
 function markDirty(s,d){let z=dirtySet();z.add(s+'|'+d);localStorage.setItem(DIRTY,JSON.stringify([...z]))}
 function clearDirty(s,d){let z=dirtySet();z.delete(s+'|'+d);localStorage.setItem(DIRTY,JSON.stringify([...z]))}
@@ -388,31 +390,48 @@ async function cloudReplaceDay(s,d,a){if(!cloudSession())return;await authFetch(
 async function cloudSyncStaff(){let local=staff(),w=wages(),tr=transports();for(let i=0;i<local.length;i++){let n=local[i];await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({name:n,active:true,sort_order:i,hourly_wage:Number(w[n]||0),transport_per_day:Number(tr[n]||0)})});unmarkStaffDeleted(n)}for(let n of deletedStaff()){await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(n),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})})}}
 async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id,transport_cost&order=work_date.asc,position.asc,id.asc');return await r.json()}
 function dailyPayKey(s,d){return JSON.stringify([s,d])}
+function dailyPayEstimate(s,d,a){
+  const wage=Number(wages()[s]||0),c=calc(a);
+  if(!(wage>0)||c[0]===null||hasInvalidWorkRange(a))return null;
+  const round=n=>Math.floor(Math.max(0,n)+0.5);
+  return round(c[0]/60*wage)+round((c[2]||0)/60*wage*.25)+round((c[3]||0)/60*wage*.25)+transportForPayroll(s,d);
+}
 async function fetchDailyPay(){
-  let r=await authFetch('/rest/v1/daily_payments?select=staff_name,work_date,paid_at');
+  let r=await authFetch('/rest/v1/daily_payments?select=staff_name,work_date,paid_at,paid_amount');
   let rows=await r.json(),next={};
-  rows.forEach(v=>{next[dailyPayKey(v.staff_name,v.work_date)]=v.paid_at||null});
+  rows.forEach(v=>{next[dailyPayKey(v.staff_name,v.work_date)]={paidAt:v.paid_at||null,amount:v.paid_amount}});
   dailyPayRecords=next;
   renderDailyPay();render();
 }
-async function setDailyPay(s,d,action){
+async function setDailyPay(s,d,action,amountText){
   if(dailyPayBusy)return;
+  if(cloudBusy){Q('dailyPayMsg').textContent='同期中です。少し待ってからもう一度操作してください。';return}
   if(!cloudSession()){Q('dailyPayMsg').textContent='クラウド接続後に記録できます。';return}
+  let amount=null;
+  if(action==='paid'||action==='amount'){
+    if(String(amountText).trim()===''||!/^[1-9]\d*$/.test(String(amountText).trim())||Number(amountText)>99999999){
+      Q('dailyPayMsg').textContent='実際に支払った金額を1円以上の整数で入力してください。';return;
+    }
+    amount=Number(amountText);
+    if(action==='paid'&&!confirm(s+'の'+d+'の日払い '+yen(amount)+' を支払い済みにしますか？'))return;
+    if(action==='amount'&&!confirm(s+'の'+d+'の支払額を '+yen(amount)+' に修正しますか？'))return;
+  }
   dailyPayBusy=true;Q('dailyPayMsg').textContent='保存中…';renderDailyPay();
   try{
-    let key=dailyPayKey(s,d),existing=Object.prototype.hasOwnProperty.call(dailyPayRecords,key);
+    let key=dailyPayKey(s,d),existing=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),record=dailyPayRecords[key];
     if(action==='remove'){
       if(existing&&!confirm(s+'の'+d+'の日払い設定を外しますか？'))return;
       await authFetch('/rest/v1/daily_payments?staff_name=eq.'+encodeURIComponent(s)+'&work_date=eq.'+encodeURIComponent(d),{method:'DELETE'});
       delete dailyPayRecords[key];
     }else{
       if(action==='unpaid'&&existing&&!confirm('支払い済みを取り消して未払いに戻しますか？'))return;
-      let paidAt=action==='paid'?new Date().toISOString():null;
-      let r=await authFetch('/rest/v1/daily_payments?on_conflict=user_id,staff_name,work_date',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify({staff_name:s,work_date:d,paid_at:paidAt})});
+      let paidAt=action==='paid'?new Date().toISOString():action==='amount'?record.paidAt:null;
+      let r=await authFetch('/rest/v1/daily_payments?on_conflict=user_id,staff_name,work_date',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=representation'},body:JSON.stringify({staff_name:s,work_date:d,paid_at:paidAt,paid_amount:paidAt?amount:null})});
       let saved=await r.json();
       if(!saved.length)throw new Error('支払い記録を確認できませんでした');
-      dailyPayRecords[key]=saved[0].paid_at||null;
+      dailyPayRecords[key]={paidAt:saved[0].paid_at||null,amount:saved[0].paid_amount};
     }
+    delete dailyPayDrafts[key];
     Q('dailyPayMsg').textContent='クラウドに保存しました ✓';render();
   }catch(e){console.error('daily payment error:',e);Q('dailyPayMsg').textContent='保存できませんでした。接続状態を確認して再試行してください。'}
   finally{dailyPayBusy=false;renderDailyPay()}
@@ -427,14 +446,18 @@ function renderDailyPay(){
   box.replaceChildren();
   if(!dates.length){box.textContent='この期間の出勤記録はありません。';return}
   dates.forEach(d=>{
-    let key=dailyPayKey(s,d),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),paid=target&&!!dailyPayRecords[key];
+    let key=dailyPayKey(s,d),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),record=dailyPayRecords[key],paid=target&&!!record.paidAt;
     let row=document.createElement('div');row.className='dailyPayRow';
-    let label=document.createElement('span');label.textContent=d.slice(5).replace('-','/')+'　'+workSpan(all[d]);
+    let label=document.createElement('div'),dateLabel=document.createElement('span'),estimate=dailyPayEstimate(s,d,all[d]);
+    dateLabel.textContent=d.slice(5).replace('-','/')+'　'+workSpan(all[d]);label.append(dateLabel);
+    let estimated=document.createElement('span');estimated.className='dailyPayEstimate';estimated.textContent=estimate===null?'日別支給額：時給・退勤を確認してください':'日別支給額 '+yen(estimate)+'（交通費 '+yen(transportForPayroll(s,d))+' 込み）';label.append(estimated);
     let actions=document.createElement('div');actions.className='dailyPayActions';
-    let status=document.createElement('span');status.className=paid?'dailyPayBadge':'dailyPayPending';status.textContent=paid?'支払い済み':target?'未払い':'通常';actions.append(status);
-    let button=(title,action)=>{let b=document.createElement('button');b.type='button';b.className='admin';b.textContent=title;b.disabled=dailyPayBusy;b.onclick=()=>setDailyPay(s,d,action);actions.append(b)};
+    let status=document.createElement('span');status.className=paid?'dailyPayBadge':'dailyPayPending';status.textContent=paid?(record.amount===null?'支払い済み・金額未登録':'支払い済み'):target?'未払い':'通常';actions.append(status);
+    let input;
+    if(target){input=document.createElement('input');input.type='number';input.min='1';input.step='1';input.inputMode='numeric';input.placeholder='支払額（円）';input.setAttribute('aria-label',s+' '+d+' の日払い支払額');input.value=dailyPayDrafts[key]??record.amount??estimate??'';input.oninput=()=>{dailyPayDrafts[key]=input.value};input.disabled=dailyPayBusy;actions.append(input)}
+    let button=(title,action)=>{let b=document.createElement('button');b.type='button';b.className='admin';b.textContent=title;b.disabled=dailyPayBusy;b.onclick=()=>setDailyPay(s,d,action,input?.value);actions.append(b)};
     if(!target)button('日払いにする','target');
-    else{button(paid?'未払いに戻す':'支払い済みにする',paid?'unpaid':'paid');button('日払い解除','remove')}
+    else{button(paid?'金額を保存':'支払い済みにする',paid?'amount':'paid');if(paid)button('未払いに戻す','unpaid');button('日払い解除','remove')}
     row.append(label,actions);box.append(row);
   });
 }
@@ -796,7 +819,7 @@ function hasInvalidWorkRange(a){
   return !!(ci&&co&&mins(ci[1])>=mins(co[1]));
 }
 function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=hasInvalidWorkRange(a)?'出勤・退勤時刻を確認してください':(a.length?'最後：'+a[a.length-1][0]:'未打刻');renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
-function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k),key=dailyPayKey(s,k),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),status=target?(dailyPayRecords[key]?'支払い済み':'未払い'):'—';if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td><span class="payStatus'+(target&&!dailyPayRecords[key]?' pending':'')+'">'+status+'</span></td></tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="8">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td>—</td></tr>'}
+function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k),key=dailyPayKey(s,k),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),record=dailyPayRecords[key],status=target?(record.paidAt?(record.amount===null?'支払い済み・金額未登録':'支払い済み '+yen(record.amount)):'未払い'):'—';if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td><span class="payStatus'+(target&&(!record.paidAt||record.amount===null)?' pending':'')+'">'+status+'</span></td></tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="8">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td>—</td></tr>'}
 function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0;while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}return [days,...tot,transportTotal]}
 
 function renderTransportRows(){
