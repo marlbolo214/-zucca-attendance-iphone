@@ -9,6 +9,11 @@ create table if not exists public.daily_payments (
 
 alter table public.daily_payments enable row level security;
 
+drop policy if exists "Own daily payments select" on public.daily_payments;
+drop policy if exists "Own daily payments insert" on public.daily_payments;
+drop policy if exists "Own daily payments update" on public.daily_payments;
+drop policy if exists "Own daily payments delete" on public.daily_payments;
+
 create policy "Own daily payments select" on public.daily_payments
   for select to authenticated using ((select auth.uid()) = user_id);
 create policy "Own daily payments insert" on public.daily_payments
