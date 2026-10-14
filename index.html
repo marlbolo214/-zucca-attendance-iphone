@@ -393,8 +393,7 @@ function dailyPayKey(s,d){return JSON.stringify([s,d])}
 function dailyPayEstimate(s,d,a){
   const wage=Number(wages()[s]||0),c=calc(a);
   if(!(wage>0)||c[0]===null||hasInvalidWorkRange(a))return null;
-  const round=n=>Math.floor(Math.max(0,n)+0.5);
-  return round(c[0]/60*wage)+round((c[2]||0)/60*wage*.25)+round((c[3]||0)/60*wage*.25)+transportForPayroll(s,d);
+  return payrollDetail([1,...c,transportForPayroll(s,d)],wage).total;
 }
 async function fetchDailyPay(){
   let r=await authFetch('/rest/v1/daily_payments?select=staff_name,work_date,paid_at,paid_amount');
@@ -655,13 +654,20 @@ async function saveTransports(){
   }
 }
 
+// 日払いと月次集計は日ごとの確定額を共通で使用する。
+function roundWageToYen(amount){return Math.floor(Math.max(0,Number(amount)||0)+0.5)}
 function payrollDetail(t,wage,transportPerDay=0){
+  if(Array.isArray(t.dailyTotals))return t.dailyTotals.reduce((sum,day)=>{
+    const p=payrollDetail(day,wage,transportPerDay);
+    for(const key of ['base','overtimePremium','nightPremium','transport','total'])sum[key]+=p[key];
+    return sum;
+  },{base:0,overtimePremium:0,nightPremium:0,transport:0,transportPerDay,total:0});
   wage=Number(wage)||0;
   transportPerDay=Number(transportPerDay)||0;
   let work=t[1]||0,ot=t[3]||0,night=t[4]||0;work=Math.floor(work/15)*15;
-  let base=work/60*wage;
-  let overtimePremium=ot/60*wage*.25;
-  let nightPremium=night/60*wage*.25;
+  let base=roundWageToYen(work/60*wage);
+  let overtimePremium=roundWageToYen(ot/60*wage*.25);
+  let nightPremium=roundWageToYen(night/60*wage*.25);
   let transport=t.length>5?Number(t[5]||0):(t[0]||0)*transportPerDay;
   return {base,overtimePremium,nightPremium,transport,transportPerDay,total:base+overtimePremium+nightPremium+transport};
 }
@@ -820,7 +826,7 @@ function hasInvalidWorkRange(a){
 }
 function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=hasInvalidWorkRange(a)?'出勤・退勤時刻を確認してください':(a.length?'最後：'+a[a.length-1][0]:'未打刻');renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
 function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k),key=dailyPayKey(s,k),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),record=dailyPayRecords[key],status=target?(record.paidAt?(record.amount===null?'支払い済み・金額未登録':'支払い済み '+yen(record.amount)):'未払い'):'—';if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td><span class="payStatus'+(target&&(!record.paidAt||record.amount===null)?' pending':'')+'">'+status+'</span></td></tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="8">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td>—</td></tr>'}
-function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0;while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}return [days,...tot,transportTotal]}
+function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0,dailyTotals=[];while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);dailyTotals.push([a.some(v=>v[0]==='出勤')?1:0,...c,a.some(v=>v[0]==='出勤')?transportForPayroll(s,day):0]);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}let result=[days,...tot,transportTotal];result.dailyTotals=dailyTotals;return result}
 
 function renderTransportRows(){
   let box=Q('transportRows'); if(!box)return;
