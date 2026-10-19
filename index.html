@@ -156,7 +156,7 @@
 <p id="cloudAdminMsg" class="note" style="white-space:pre-wrap"></p>
 <hr><b>端末管理</b><div id="deviceCounts" class="deviceCounts"><span class="deviceCount">打刻専用 0/1台</span><span class="deviceCount">管理者用 0/2台</span></div><p class="note">Supabaseに登録された端末だけが同期できます。解除した枠は別の端末で再利用できます。</p><div id="deviceList"><p class="note">クラウド接続後に表示します。</p></div><div class="row actions"><button onclick="loadDevices(true)">端末一覧を更新</button></div><p id="deviceMsg" class="note"></p>
 <hr><b>時給設定</b>
-<p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。</p>
+<p class="note">スタッフごとに時給を登録します。給与目安＝実働×時給＋8時間超の25%割増＋深夜時間の25%割増。過去の時給履歴がある場合は勤務日ごとの時給で計算します。</p>
 <div id="wageList"></div>
 <div class="row actions"><button onclick="saveWages()">時給を保存</button></div>
 <p id="wageMsg" class="note"></p>
@@ -391,7 +391,7 @@ async function cloudSyncStaff(){let local=staff(),w=wages(),tr=transports();for(
 async function fetchCloudAttendance(){let r=await authFetch('/rest/v1/attendance?select=staff_name,work_date,punch_type,punch_time,position,id,transport_cost&order=work_date.asc,position.asc,id.asc');return await r.json()}
 function dailyPayKey(s,d){return JSON.stringify([s,d])}
 function dailyPayEstimate(s,d,a){
-  const wage=Number(wages()[s]||0),c=calc(a);
+  const wage=dailyWage(s,d),c=calc(a);
   if(!(wage>0)||c[0]===null||hasInvalidWorkRange(a))return null;
   return payrollDetail([1,...c,transportForPayroll(s,d)],wage).total;
 }
@@ -511,7 +511,7 @@ async function repairDuplicateCloudStaff(){
   return;
 }
 
-async function fetchCloudStaff(){let r=await authFetch('/rest/v1/staff_members?select=name,active,sort_order,hourly_wage,transport_per_day&order=sort_order.asc,name.asc');return await r.json()}
+async function fetchCloudStaff(){let r=await authFetch('/rest/v1/staff_members?select=name,active,sort_order,hourly_wage,transport_per_day,hourly_wage_history&order=sort_order.asc,name.asc');return await r.json()}
 function allLocalDays(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),out=[];for(let [s,days] of Object.entries(x))for(let [d,a] of Object.entries(days||{}))if(Array.isArray(a)&&a.length)out.push([s,d,a]);return out}
 async function syncCloud(showMsg=false){
   if(cloudBusy||dailyPayBusy)return;
@@ -570,14 +570,16 @@ async function syncCloud(showMsg=false){
     let active=sr.filter(v=>v.active).map(v=>v.name);
     if(active.length)localStorage.setItem(SK,JSON.stringify(active));
 
-    let cw={},ct={};
+    let cw={},ct={},ch={};
     sr.forEach(v=>{
       if(!v.active)return;
       let hw=Number(v.hourly_wage||0),tp=Number(v.transport_per_day||0);
       if(hw>0)cw[v.name]=hw;
+      ch[v.name]=Array.isArray(v.hourly_wage_history)?v.hourly_wage_history:[];
       if(tp>0)ct[v.name]=tp;
     });
     localStorage.setItem(WK,JSON.stringify(cw));
+    localStorage.setItem('zucca_hourly_wage_history_v1',JSON.stringify(ch));
     localStorage.setItem(TK,JSON.stringify(ct));
 
     await fetchDailyPay();
@@ -617,6 +619,15 @@ async function cloudAfterDayChange(s,d,a){
 async function cloudAddStaff(n){if(!cloudSession())return;try{await authFetch('/rest/v1/staff_members?on_conflict=name',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({name:n,active:true,sort_order:staff().indexOf(n),hourly_wage:Number(wages()[n]||0),transport_per_day:Number(transports()[n]||0)})});unmarkStaffDeleted(n);cloudSetStatus('同期済み ✓')}catch(e){cloudSetStatus('スタッフ変更は端末内のみ保存',false)}}
 async function cloudDeleteStaff(n){markStaffDeleted(n);if(!cloudSession())return;try{await authFetch('/rest/v1/staff_members?name=eq.'+encodeURIComponent(n),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({active:false})});cloudSetStatus('同期済み ✓')}catch(e){cloudSetStatus('スタッフ変更は端末内のみ保存',false)}}
 
+// Historical overrides are inclusive; dates outside them use the current staff rate.
+function wageForDate(currentWage,history,date){
+  const periods=Array.isArray(history)?history:[];
+  const match=periods.find(p=>p&&typeof p.start==='string'&&typeof p.end==='string'&&p.start<=date&&date<=p.end&&Number.isFinite(Number(p.wage))&&Number(p.wage)>=0);
+  return match?Number(match.wage):Number(currentWage)||0;
+}
+function wageHistories(){try{return JSON.parse(localStorage.getItem('zucca_hourly_wage_history_v1')||'{}')||{}}catch(e){return {}}}
+function dailyWage(name,date){return wageForDate(wages()[name],wageHistories()[name],date)}
+function periodWage(name){return dailyWage(name,iso(range()[1]))}
 function wages(){try{let w=JSON.parse(localStorage.getItem(WK)||'{}');return w&&typeof w==='object'?w:{}}catch(e){return {}}}
 function yen(n){return '¥'+Math.round(Number(n)||0).toLocaleString('ja-JP')}
 
@@ -658,7 +669,7 @@ async function saveTransports(){
 function roundWageToYen(amount){return Math.floor(Math.max(0,Number(amount)||0)+0.5)}
 function payrollDetail(t,wage,transportPerDay=0){
   if(Array.isArray(t.dailyTotals))return t.dailyTotals.reduce((sum,day)=>{
-    const p=payrollDetail(day,wage,transportPerDay);
+    const p=payrollDetail(day,day.wage??wage,transportPerDay);
     for(const key of ['base','overtimePremium','nightPremium','transport','total'])sum[key]+=p[key];
     return sum;
   },{base:0,overtimePremium:0,nightPremium:0,transport:0,transportPerDay,total:0});
@@ -826,7 +837,7 @@ function hasInvalidWorkRange(a){
 }
 function render(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),s=Q('staff').value,d=iso(new Date()),a=x[s]?.[d]||[];Q('log').innerHTML=a.map(v=>'<p>'+v[0]+' <b>'+v[1]+'</b></p>').join('')||'<p>まだ打刻はありません</p>';Q('status').textContent=hasInvalidWorkRange(a)?'出勤・退勤時刻を確認してください':(a.length?'最後：'+a[a.length-1][0]:'未打刻');renderTodayTransport(s,d,a);if(Q('todaySpan'))Q('todaySpan').textContent='勤務時間：'+workSpan(a);let c=calc(a);['work','brk','ot','night'].forEach((z,i)=>Q(z).textContent=fmt(c[i]));month(x,s)}
 function month(x,s){let [st,en]=range(),d=new Date(st),rows=[],tot=[0,0,0,0],transportTotal=0;Q('period').textContent=iso(st)+' ～ '+iso(en);while(d<=en){let k=iso(d),a=x[s]?.[k]||[];if(a.length){let c=calc(a),cost=dailyTransportValue(s,k),key=dailyPayKey(s,k),target=Object.prototype.hasOwnProperty.call(dailyPayRecords,key),record=dailyPayRecords[key],status=target?(record.paidAt?(record.amount===null?'支払い済み・金額未登録':'支払い済み '+yen(record.amount)):'未払い'):'—';if(a.some(v=>v[0]==='出勤'))transportTotal+=transportForPayroll(s,k);rows.push('<tr><td>'+(d.getMonth()+1)+'/'+d.getDate()+'</td><td>'+workSpan(a)+'</td><td>'+(cost===null?'未設定':yen(cost))+'</td>'+c.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td><span class="payStatus'+(target&&(!record.paidAt||record.amount===null)?' pending':'')+'">'+status+'</span></td></tr>');c.forEach((v,i)=>{if(v!=null)tot[i]+=v})}d.setDate(d.getDate()+1)}Q('monthly').innerHTML=rows.join('')||'<tr><td colspan="8">この期間の打刻はありません</td></tr>';Q('totals').innerHTML='<tr class="total"><td>合計</td><td>—</td><td>'+yen(transportTotal)+'</td>'+tot.map(v=>'<td>'+fmt(v)+'</td>').join('')+'<td>—</td></tr>'}
-function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0,dailyTotals=[];while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);dailyTotals.push([a.some(v=>v[0]==='出勤')?1:0,...c,a.some(v=>v[0]==='出勤')?transportForPayroll(s,day):0]);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}let result=[days,...tot,transportTotal];result.dailyTotals=dailyTotals;return result}
+function staffTotal(x,s){let [st,en]=range(),d=new Date(st),tot=[0,0,0,0],days=0,transportTotal=0,dailyTotals=[];while(d<=en){let day=iso(d),a=x[s]?.[day]||[];if(a.some(v=>v[0]==='出勤')){days++;transportTotal+=transportForPayroll(s,day)}let c=calc(a);let dayTotal=[a.some(v=>v[0]==='出勤')?1:0,...c,a.some(v=>v[0]==='出勤')?transportForPayroll(s,day):0];dayTotal.wage=dailyWage(s,day);dailyTotals.push(dayTotal);c.forEach((v,i)=>{if(v!=null)tot[i]+=v});d.setDate(d.getDate()+1)}let result=[days,...tot,transportTotal];result.dailyTotals=dailyTotals;return result}
 
 function renderTransportRows(){
   let box=Q('transportRows'); if(!box)return;
@@ -845,7 +856,7 @@ function allSummary(){
   let grand=0,sumBase=0,sumOt=0,sumNight=0,sumTransport=0,tableRows=[],cards=[];
   let members=staff();
   members.forEach(name=>{
-    let t=staffTotal(x,name),rate=Number(w[name]||0),transportPerDay=Number(tr[name]||0),p=payrollDetail(t,rate,transportPerDay);
+    let t=staffTotal(x,name),rate=periodWage(name),transportPerDay=Number(tr[name]||0),p=payrollDetail(t,rate,transportPerDay);
     grand+=p.total;sumBase+=p.base;sumOt+=p.overtimePremium;sumNight+=p.nightPremium;sumTransport+=p.transport;
     tableRows.push('<tr><td>'+safe(name)+'</td><td>'+t[0]+'</td><td>'+yen(rate)+'</td><td>'+fmt(t[1])+'</td><td>'+fmt(t[2])+'</td><td>'+fmt(t[3])+'</td><td>'+yen(p.overtimePremium)+'</td><td>'+fmt(t[4])+'</td><td>'+yen(p.nightPremium)+'</td><td>'+yen(p.total)+'</td></tr>');
     let initial=safe(name).charAt(0);
@@ -958,7 +969,8 @@ async function renameStaff(oldn){
         active:true,
         sort_order:Number(old.sort_order??idx),
         hourly_wage:Number(old.hourly_wage||w[oldn]||0),
-        transport_per_day:Number(old.transport_per_day||tr[oldn]||0)
+        transport_per_day:Number(old.transport_per_day||tr[oldn]||0),
+        hourly_wage_history:old.hourly_wage_history||wageHistories()[oldn]||[]
       })});
       await authFetch('/rest/v1/attendance?staff_name=eq.'+encodeURIComponent(oldn),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({staff_name:newn})});
       await authFetch('/rest/v1/daily_payments?staff_name=eq.'+encodeURIComponent(oldn),{method:'PATCH',headers:{'Prefer':'return=minimal'},body:JSON.stringify({staff_name:newn})});
@@ -984,6 +996,7 @@ async function renameStaff(oldn){
     if(Object.prototype.hasOwnProperty.call(tr,oldn)){tr[newn]=tr[oldn];delete tr[oldn];localStorage.setItem(TK,JSON.stringify(tr))}
     let dt=dailyTransports();if(Object.prototype.hasOwnProperty.call(dt,oldn)){dt[newn]=dt[oldn];delete dt[oldn];localStorage.setItem(DTK,JSON.stringify(dt))}
     for(let [key,value] of Object.entries(dailyPayRecords)){let [name,day]=JSON.parse(key);if(name===oldn){dailyPayRecords[dailyPayKey(newn,day)]=value;delete dailyPayRecords[key]}}
+    let wh=wageHistories();if(wh[oldn]){wh[newn]=wh[oldn];delete wh[oldn];localStorage.setItem('zucca_hourly_wage_history_v1',JSON.stringify(wh))}
     unmarkStaffDeleted(newn);markStaffDeleted(oldn);
 
     rs();
@@ -998,7 +1011,7 @@ async function renameStaff(oldn){
   }
 }
 function rl(){const box=Q('list');box.replaceChildren();staff().forEach(n=>{const row=document.createElement('div');row.className='sr';const sp=document.createElement('span');sp.textContent=n;const edit=document.createElement('button');edit.className='admin';edit.textContent='名前変更';edit.onclick=()=>renameStaff(n);const b=document.createElement('button');b.className='del';b.textContent='削除';b.onclick=()=>del(n);row.append(sp,edit,b);box.appendChild(row)})}
-function csv(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports(),r=range(),lines=['スタッフ,期間,出勤日数,時給,実働,休憩,残業,残業割増額,深夜,深夜割増額,交通費,支給額'];staff().forEach(s=>{let t=staffTotal(x,s),rate=Number(w[s]||0),p=payrollDetail(t,rate,Number(tr[s]||0));lines.push('"'+s.replace(/"/g,'""')+'","'+iso(r[0])+'～'+iso(r[1])+'",'+t[0]+','+rate+','+fmt(t[1])+','+fmt(t[2])+','+fmt(t[3])+','+Math.round(p.overtimePremium)+','+fmt(t[4])+','+Math.round(p.nightPremium)+','+Math.round(p.transport)+','+Math.round(p.total))});let blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZUCCA勤怠給与_'+iso(r[0])+'_'+iso(r[1])+'.csv';a.click();URL.revokeObjectURL(a.href)}
+function csv(){let x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports(),r=range(),lines=['スタッフ,期間,出勤日数,時給,実働,休憩,残業,残業割増額,深夜,深夜割増額,交通費,支給額'];staff().forEach(s=>{let t=staffTotal(x,s),rate=periodWage(s),p=payrollDetail(t,rate,Number(tr[s]||0));lines.push('"'+s.replace(/"/g,'""')+'","'+iso(r[0])+'～'+iso(r[1])+'",'+t[0]+','+rate+','+fmt(t[1])+','+fmt(t[2])+','+fmt(t[3])+','+Math.round(p.overtimePremium)+','+fmt(t[4])+','+Math.round(p.nightPremium)+','+Math.round(p.transport)+','+Math.round(p.total))});let blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ZUCCA勤怠給与_'+iso(r[0])+'_'+iso(r[1])+'.csv';a.click();URL.revokeObjectURL(a.href)}
 function printReport(){
   // 給与明細も1人1枚PDFへ統一。従来のブラウザ印刷は2ページ化しやすいため使わない。
   openAttendancePdfPicker();
@@ -1073,7 +1086,7 @@ function printSelectedAttendanceFourUp(){
   const x=JSON.parse(localStorage.getItem(DK)||'{}'),w=wages(),tr=transports();
   const payroll={};
   names.forEach(name=>{
-    const t=staffTotal(x,name),rate=Number(w[name]||0),p=payrollDetail(t,rate,Number(tr[name]||0));
+    const t=staffTotal(x,name),rate=periodWage(name),p=payrollDetail(t,rate,Number(tr[name]||0));
     payroll[name]={days:t[0],rate,work:t[1]||0,breakTime:t[2]||0,overtime:t[3]||0,night:t[4]||0,base:p.base,overtimePremium:p.overtimePremium,nightPremium:p.nightPremium,transport:p.transport,total:p.total};
   });
   // PDFは出勤日のみ。給与明細と日別勤怠を1人1ページに収める。
@@ -1087,3 +1100,4 @@ function printSelectedAttendanceFourUp(){
 }
 
 </script></body></html>
+
